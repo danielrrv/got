@@ -15,16 +15,17 @@ const (
 	gotRepositoryDirRefsHeads = "heads"
 	gotRepositoryDirObjects   = "objects"
 	gotRootRepositoryDir      = ".got"
+	version                   = "v1.0.0"
 )
 
 var (
 	ErrroPathInvalid            = errors.New("path is invalid")
 	ErrorPathDoesNotExist       = errors.New("path does not exist")
 	ErrorRepositoryDoesNotExist = errors.New("repository does not exist")
-	ErrorLoadConfig = errors.New("unable to load the configuration")
+	ErrorLoadConfig             = errors.New("unable to load the configuration")
 )
 var (
-	VersionRegex = regexp.MustCompile("^got-version")
+	VersionRegex = regexp.MustCompile("^version")
 )
 
 type GotConfig struct{}
@@ -72,7 +73,6 @@ func tryCreateFolderIn(path, dir string) {
 func FindOrCreateRepo(path string) (*GotRepository, error) {
 	gotRootPath := filepath.Join(path, gotRootRepositoryDir)
 	versionPathFile := filepath.Join(path, gotRootRepositoryDir, "version")
-	fmt.Println(versionPathFile)
 	if !pathExist(path, true) {
 		return nil, ErrorPathDoesNotExist
 	}
@@ -97,11 +97,9 @@ func FindOrCreateRepo(path string) (*GotRepository, error) {
 
 	if versionFile, err := os.OpenFile(filepath.Join(gotRootPath, "version"), os.O_RDWR|os.O_CREATE, 0644); err == nil {
 		defer versionFile.Close()
-		if n, err := versionFile.Write([]byte("got.v123")); err != nil {
+		if _, err := versionFile.Write([]byte(fmt.Sprintf("version: %s", version))); err != nil {
 			panic(err)
-		} else {
-			fmt.Println(n)
-		}
+		} 
 	}
 	tryCreateFolderIn(gotRootPath, gotRepositoryDirRefs)
 	tryCreateFolderIn(gotRootPath, gotRepositoryDirObjects)
