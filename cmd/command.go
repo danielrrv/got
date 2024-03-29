@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"errors"
 )
 
 // go build -o got  && sudo cp got /usr/bin
@@ -41,12 +42,11 @@ func NewApplication() *Application {
 
 func (a *Application) Run()  int{
 	for _, cmd := range a.commands {
-		fmt.Println(cmd.name)
 		if os.Args[1] == cmd.name{
 			return cmd.Run(a, os.Args[2:])
 		}
 	}
-	fmt.Println("Unnoek comand")
+	a.Report(errors.New("unknown command"))
 	return 1
 }
 
@@ -54,9 +54,7 @@ func(a * Application)Report(format error){
 	fmt.Fprintln(a.stdErr, format)	
 }
 
-func (a * Application)Close(code int){
-	os.Exit(code)
-}
+
 func (a *Application) AddCommand(name string, args []Arg, callback func(app * Application,args []string) int) {
 	cmd := flag.NewFlagSet(name, flag.ContinueOnError)
 	arguments := make([]*string, 0)

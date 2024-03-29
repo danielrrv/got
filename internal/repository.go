@@ -21,7 +21,6 @@ var (
 	ErrroPathInvalid            = errors.New("path is invalid")
 	ErrorPathDoesNotExist       = errors.New("path does not exist")
 	ErrorRepositoryDoesNotExist = errors.New("repository does not exist")
-	// ErrorRepositoryExist =
 	ErrorLoadConfig = errors.New("unable to load the configuration")
 )
 var (

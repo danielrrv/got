@@ -69,7 +69,6 @@ func Deserialize[K GotObject](c *K, b []byte) error {
 
 func WriteObject[K GotObject](c *K) {
 	t := reflect.TypeOf(*c)
-	// fmt.Println(t)
 	switch t.Name() {
 	case "Commit":
 

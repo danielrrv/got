@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	internal "github.com/danielrrv/got/internal"
@@ -36,8 +35,9 @@ func CommandInit(app *Application, args []string) int {
 	repo, err := internal.FindOrCreateRepo(path)
 	if err != nil {
 		app.Report(err)
-		app.Close(1)
+		
 	}
-	fmt.Println(repo)
+	var config interface{}
+	repo.SetConfig(config)
 	return 0
 }
