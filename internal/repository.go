@@ -55,7 +55,7 @@ func (gr *GotRepository) SetConfig(config interface{}) {
 	gr.GotConfig = config.(GotConfig)
 }
 
-func tryCreateFileIn(path, filename string) {
+func TryCreateFileIn(path, filename string) {
 	filePath := filepath.Join(path, filename)
 	file, err := os.Create(filePath)
 	if err != nil {
@@ -63,7 +63,7 @@ func tryCreateFileIn(path, filename string) {
 	}
 	file.Chmod(0750)
 }
-func tryCreateFolderIn(path, dir string) {
+func TryCreateFolderIn(path, dir string) {
 	dirPath := filepath.Join(path, dir)
 	if !pathExist(dirPath, true) {
 		os.Mkdir(dirPath, fs.ModeDir|0750)
@@ -93,7 +93,7 @@ func FindOrCreateRepo(path string) (*GotRepository, error) {
 	if err != nil {
 		panic(err)
 	}
-	tryCreateFolderIn(path, gotRootRepositoryDir)
+	TryCreateFolderIn(path, gotRootRepositoryDir)
 
 	if versionFile, err := os.OpenFile(filepath.Join(gotRootPath, "version"), os.O_RDWR|os.O_CREATE, 0644); err == nil {
 		defer versionFile.Close()
@@ -101,10 +101,10 @@ func FindOrCreateRepo(path string) (*GotRepository, error) {
 			panic(err)
 		} 
 	}
-	tryCreateFolderIn(gotRootPath, gotRepositoryDirRefs)
-	tryCreateFolderIn(gotRootPath, gotRepositoryDirObjects)
-	tryCreateFolderIn(gotRootPath, filepath.Join(gotRepositoryDirRefs, gotRepositoryDirRefsHeads))
-	tryCreateFolderIn(gotRootPath, filepath.Join(gotRepositoryDirRefs, gotRepositoryDirRefsTags))
+	TryCreateFolderIn(gotRootPath, gotRepositoryDirRefs)
+	TryCreateFolderIn(gotRootPath, gotRepositoryDirObjects)
+	TryCreateFolderIn(gotRootPath, filepath.Join(gotRepositoryDirRefs, gotRepositoryDirRefsHeads))
+	TryCreateFolderIn(gotRootPath, filepath.Join(gotRepositoryDirRefs, gotRepositoryDirRefsTags))
 	return repo, nil
 }
 
