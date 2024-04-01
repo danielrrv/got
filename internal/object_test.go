@@ -81,9 +81,13 @@ func TestSerialize(t *testing.T) {
 		if err != nil {
 			t.Errorf("no object written, %v", err.Error())
 		}
-		err = internal.ReadObject(repo, &commit, "commit", hash)
+		commit2:= new(internal.Commit)
+		err = internal.ReadObject(repo, commit2, "commit", hash)
 		if err != nil {
 			t.Errorf("%v", err.Error())
+		}
+		if commit2.Date !=commit.Date{
+			t.Errorf("Expected to commit2.Date equals to commit.Date")
 		}
 		err = internal.RemoveObjectFrom(repo, hash)
 		if err != nil {

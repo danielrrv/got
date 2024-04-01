@@ -6,7 +6,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
-	"fmt"
+	// "fmt"
 
 	// "fmt"
 	"io"
@@ -22,27 +22,30 @@ type GotObject interface {
 }
 
 const (
-	tagName  = "object"
-	NEW_LINE = '\n'
-	TAB      = '\t'
-	COMMIT   = string("commit")
-	TREE     = string("tree")
-	BLOB     = string("blob")
+	tagName            = "object"
+	NEW_LINE           = '\n'
+	TAB                = '\t'
+	COMMIT_HEADER_NAME = string("commit")
+	TREE_HEADER_NAME   = string("tree")
+	BLOB_HEADER_NAME   = string("blob")
 )
 
 var (
-	ErrorParsingObject = errors.New("error parsing object")
-	ErrorIsNotObject   = errors.New("the pointer isn't an object")
+	ErrorParsingObject       = errors.New("error parsing object")
+	ErrorIsNotObject         = errors.New("the pointer isn't an object")
+	ErrorIncorrectOBjectType = errors.New("incorrect object type")
 )
 
 func Serialize[K GotObject](c *K) ([]byte, error) {
-	var out bytes.Buffer;t := reflect.TypeOf(*c);v := reflect.ValueOf(*c)
-	
+	var out bytes.Buffer
+	t := reflect.TypeOf(*c)
+	v := reflect.ValueOf(*c)
+
 	if t.Kind() != reflect.Struct {
 		return nil, ErrorIsNotObject
 	}
 	for index := range t.NumField() {
-		out.Write([]byte( t.Field(index).Tag.Get(tagName)))
+		out.Write([]byte(t.Field(index).Tag.Get(tagName)))
 		out.WriteByte(TAB)
 		out.Write([]byte(v.Field(index).String()))
 		if t.NumField()-1 > index {
@@ -53,7 +56,6 @@ func Serialize[K GotObject](c *K) ([]byte, error) {
 }
 
 func Deserialize[K GotObject](c *K, b []byte) error {
-
 	t := reflect.TypeOf(*c)
 	v := reflect.ValueOf(c).Elem()
 	m := make(map[string]interface{})
@@ -107,13 +109,13 @@ func ReadObject[K GotObject](repo *GotRepository, ob *K, header string, hash str
 	var bb bytes.Buffer
 	Decompress(content, &bb)
 	if bytes.Compare(bb.Bytes()[0:len(header)], []byte(header)) > 0 {
-		return errors.New("incorrect object type")
+		return ErrorIncorrectOBjectType
 	}
 	if bb.Bytes()[len(header)] != 0x20 {
 		return errors.New("malformed object")
 	}
 	data := bb.Bytes()[dataStartPos : int(bb.Bytes()[sizePos])+dataStartPos]
-	fmt.Println(string(data))
+	Deserialize(ob, data)
 	return nil
 
 }
@@ -123,7 +125,7 @@ func RemoveObjectFrom(repo *GotRepository, hash string) error {
 }
 
 func WriteObject[K GotObject](repo *GotRepository, ob *K, header string) (string, error) {
-	
+
 	var bb bytes.Buffer
 	hash := make([]byte, sha1.Size*2)
 	buf := make([]byte, 0)
@@ -157,7 +159,6 @@ func WriteObject[K GotObject](repo *GotRepository, ob *K, header string) (string
 		return "", err
 	}
 	defer file.Close()
-	
 	file.Write(bb.Bytes())
 	return string(hash), nil
 }
