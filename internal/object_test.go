@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	ROOT_DIR = "/home/daniel/got"
+	RoorDir = "/home/daniel/got"
 )
 
 func TestSerialize(t *testing.T) {
@@ -46,11 +46,15 @@ func TestSerialize(t *testing.T) {
 			Date:        "25-05-2023",
 			Parent:      "34567876543",
 		}
-		repo, err := internal.FindOrCreateRepo(ROOT_DIR)
+		repo, err := internal.FindOrCreateRepo(RoorDir)
 		if err != nil {
 			t.Errorf("No repo found.")
 		}
-		hash, err := internal.WriteObject(repo, &commit, "commit")
+		bb, err := internal.Serialize(&commit)
+		if err != nil {
+			t.Errorf("expected serialize commit, %v", err.Error())
+		}
+		hash, err := internal.WriteObject(repo, bb, "commit")
 		if err != nil {
 			t.Errorf("no object written, %v", err.Error())
 		}
@@ -77,16 +81,22 @@ func TestSerialize(t *testing.T) {
 		if err != nil {
 			t.Errorf("No repo found.")
 		}
-		hash, err := internal.WriteObject(repo, &commit, "commit")
+		bb, err := internal.Serialize(&commit)
+		if err != nil {
+			t.Errorf("expected serialize commit, %v", err.Error())
+		}
+		hash, err := internal.WriteObject(repo, bb, "commit")
 		if err != nil {
 			t.Errorf("no object written, %v", err.Error())
 		}
-		commit2:= new(internal.Commit)
-		err = internal.ReadObject(repo, commit2, "commit", hash)
+		commit2 := new(internal.Commit)
+
+		obj, err := internal.ReadObject(repo, "commit", hash)
+		internal.Deserialize(commit2, obj)
 		if err != nil {
 			t.Errorf("%v", err.Error())
 		}
-		if commit2.Date !=commit.Date{
+		if commit2.Date != commit.Date {
 			t.Errorf("Expected to commit2.Date equals to commit.Date")
 		}
 		err = internal.RemoveObjectFrom(repo, hash)

@@ -4,7 +4,7 @@ package cmd
 func Execute() int {
 	application := NewApplication()
 	//commands.
-	application.AddCommand(initCommand, initArguments, CommandInit)
+	application.AddCommand(initCommandName, initArguments, CommandInit)
 
 	return application.Run()
 }

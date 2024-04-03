@@ -19,7 +19,7 @@ const (
 )
 
 var (
-	ErrroPathInvalid            = errors.New("path is invalid")
+	ErrorPathInvalid            = errors.New("path is invalid")
 	ErrorPathDoesNotExist       = errors.New("path does not exist")
 	ErrorRepositoryDoesNotExist = errors.New("repository does not exist")
 	ErrorLoadConfig             = errors.New("unable to load the configuration")
@@ -38,6 +38,8 @@ type GotRepository struct {
 	GotConfig GotConfig
 	// .got folder name.
 	GotDir string
+	index * Index
+	// objects []GotObject
 }
 
 func newGotRepository(rootP string) (*GotRepository, error) {
@@ -55,14 +57,19 @@ func (gr *GotRepository) SetConfig(config interface{}) {
 	gr.GotConfig = config.(GotConfig)
 }
 
-func TryCreateFileIn(path, filename string) {
+func TryCreateFileIn(path, filename string) error {
+	if filepath.IsAbs(path) && !pathExist(path, true) {
+		os.Mkdir(path, fs.ModeDir|0750)
+	}
 	filePath := filepath.Join(path, filename)
 	file, err := os.Create(filePath)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	file.Chmod(0750)
+	return nil
 }
+
 func TryCreateFolderIn(path, dir string) {
 	dirPath := filepath.Join(path, dir)
 	if !pathExist(dirPath, true) {

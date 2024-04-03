@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	initCommand = "init"
+	initCommandName = "init"
 )
 
 var (
