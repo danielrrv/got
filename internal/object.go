@@ -18,7 +18,7 @@ import (
 )
 
 type GotObject interface {
-	Commit | Tree
+	Commit | Blob
 }
 
 

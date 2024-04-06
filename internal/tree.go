@@ -9,27 +9,24 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	// "os"
-	// "path/filepath"
 	"slices"
 )
 
 type Mode []byte
 
 var (
-	BLOB_MODE Mode = []byte{0x31, 0x30, 0x30, 0x36, 0x34, 0x34} //100644
-	TREE_MODE Mode = []byte{0x30, 0x34, 0x30, 0x30, 0x30, 0x30} //040000
+	BlobMode Mode = []byte{0x31, 0x30, 0x30, 0x36, 0x34, 0x34} //100644
+	TreeMode Mode = []byte{0x30, 0x34, 0x30, 0x30, 0x30, 0x30} //040000
 )
 
-func (m *Mode) String() string {
-	switch m {
-	case &BLOB_MODE:
-		return "blob"
-	case &TREE_MODE:
-		return "tree"
+func (m Mode) String() string {
+	switch (string)(m) {
+	case string(BlobMode):
+		return `blob`
+	case string(TreeMode):
+		return `tree`
 	default:
-		panic("No conversion type")
+		panic("No conversion type.")
 	}
 }
 
@@ -48,30 +45,6 @@ type Tree struct {
 	Size   int
 }
 
-// func treeFromSubFolders(repo *GotRepository, path string) *Tree {
-// 	// /repo/a/b/c.txt, /repo/a/b/mx.txt /repo/a/c/mt.txt
-
-// 	// if isDir(path){
-// 	// 	tree := Tree{
-// 	// 		Buffer: []TreeItem{{mode: TREE_MODE, path:path, hash: }},
-// 	// 	}
-// 	// }
-
-// // 	if isFile(path) {
-// // 		content, err := os.ReadFile(filepath.Join(repo.GotTree, filepath.Join(dirs...)))
-// // 		if err != nil {
-// // 			panic(err)
-// // 		}
-// // 		hash, err := CreatePossibleObjectFromData(repo, content, BLOB_HEADER_NAME)
-// // 		if err != nil {
-// // 			panic(err)
-// // 		}
-// // 		return &Tree{
-// // 			Buffer: []TreeItem{{mode: BLOB_MODE, path: filepath.Base(path), hash: hash}},
-// // 			Size:   1,
-// // 		}
-// // 	}
-// // }
 
 type OFS struct {
 	path string
@@ -94,10 +67,10 @@ func indexOf(offs []OFS, key string) int {
 func TraverseTree(repo *GotRepository, t *TreeItem) {
 	fmt.Printf("%s\t%s\t%s\n", t.Mode, t.Path, t.Hash)
 	for _, item := range t.Children {
-		if bytes.Equal(item.Mode, BLOB_MODE) {
+		if bytes.Equal(item.Mode, BlobMode) {
 			fmt.Printf("%s\t%s\t%s\n", item.Mode, item.Path, item.Hash)
 		}
-		if bytes.Equal(item.Mode, TREE_MODE) {
+		if bytes.Equal(item.Mode, TreeMode) {
 			fmt.Printf("%s\t%s\t%s\n", item.Mode, item.Path, item.Hash)
 			for _, child := range item.Children {
 				TraverseTree(repo, child)
@@ -110,7 +83,7 @@ func FromMapToTree(repo *GotRepository, m map[string][]OFS, parent string) *Tree
 	items := m[parent]
 	re := make([]*TreeItem, 0)
 	for _, item := range items {
-		if bytes.Equal(item.mode, BLOB_MODE) {
+		if bytes.Equal(item.mode, BlobMode) {
 			bb := []byte{0x34, 0x34, 0x34}
 			hash, err := CreatePossibleObjectFromData(repo, bb, blobHeaderName)
 			if err != nil {
@@ -119,18 +92,18 @@ func FromMapToTree(repo *GotRepository, m map[string][]OFS, parent string) *Tree
 			re = append(re, &TreeItem{
 				Path:     item.path,
 				Hash:     hash,
-				Mode:     BLOB_MODE,
+				Mode:     BlobMode,
 				Children: nil,
 			})
 		}
-		if bytes.Equal(item.mode, TREE_MODE) {
+		if bytes.Equal(item.mode, TreeMode) {
 			re = append(re, FromMapToTree(repo, m, item.path))
 		}
 	}
 	
 	t := TreeItem{
 		Path:     parent,
-		Mode:     TREE_MODE,
+		Mode:     TreeMode,
 		Hash:     "",
 		Children: re,
 	}
@@ -150,11 +123,11 @@ func CreateTreeFromFiles(repo *GotRepository, files []string) map[string][]OFS {
 		for i := len(dirs) - 1; i > 0; i-- {
 			if isFile(filepath.Join(repo.GotTree, filepath.Join(dirs[0:i]...), dirs[i])) {
 				if indexOf(m[dirs[i-1]], dirs[i]) == -1 {
-					m[dirs[i-1]] = append(m[dirs[i-1]], OFS{path: dirs[i], mode: BLOB_MODE})
+					m[dirs[i-1]] = append(m[dirs[i-1]], OFS{path: dirs[i], mode: BlobMode})
 				}
 			} else {
 				if indexOf(m[dirs[i-1]], dirs[i]) == -1 {
-					m[dirs[i-1]] = append(m[dirs[i-1]], OFS{path: dirs[i], mode: TREE_MODE})
+					m[dirs[i-1]] = append(m[dirs[i-1]], OFS{path: dirs[i], mode: TreeMode})
 				}
 			}
 		}
@@ -181,11 +154,11 @@ func ParseTree(repo *GotRepository, data []byte) ([]TreeItem, error) {
 		return nil, errors.New("nothing to parse")
 	}
 	for size > 0 {
-		mode := data[:len(BLOB_MODE)]
-		pathSize := data[len(BLOB_MODE)]
-		path := data[len(BLOB_MODE)+1 : int(pathSize)]
-		hash := data[len(BLOB_MODE)+1+int(pathSize)+1:]
-		if bytes.Equal(mode, TREE_MODE) {
+		mode := data[:len(BlobMode)]
+		pathSize := data[len(BlobMode)]
+		path := data[len(BlobMode)+1 : int(pathSize)]
+		hash := data[len(BlobMode)+1+int(pathSize)+1:]
+		if bytes.Equal(mode, TreeMode) {
 			obj, err := ReadObject(repo, treeHeaderName, string(hash))
 			if err != nil {
 				fmt.Printf("unable to read tree, %v", err.Error())

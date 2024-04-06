@@ -38,8 +38,26 @@ type GotRepository struct {
 	GotConfig GotConfig
 	// .got folder name.
 	GotDir string
-	index * Index
-	// objects []GotObject
+	index  *Index
+}
+
+func ReadRepoFile(repo *GotRepository, fileDir string) ([]byte, error) {
+	content, err := os.ReadFile(filepath.Join(repo.GotDir, fileDir))
+	if err != nil {
+		return nil, err
+	}
+	return content, nil
+}
+
+func CreateRepoFile(repo *GotRepository, filename string, data []byte) ([]byte, error) {
+	path := filepath.Join(repo.GotDir, gotRootRepositoryDir, filename)
+	if file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644); err == nil {
+		defer file.Close()
+		if _, err := file.Write(data); err != nil {
+			return nil, err
+		}
+	}
+	return nil, errors.New("unable to find the file in the repo")
 }
 
 func newGotRepository(rootP string) (*GotRepository, error) {
@@ -106,7 +124,7 @@ func FindOrCreateRepo(path string) (*GotRepository, error) {
 		defer versionFile.Close()
 		if _, err := versionFile.Write([]byte(fmt.Sprintf("version: %s", version))); err != nil {
 			panic(err)
-		} 
+		}
 	}
 	TryCreateFolderIn(gotRootPath, gotRepositoryDirRefs)
 	TryCreateFolderIn(gotRootPath, gotRepositoryDirObjects)
