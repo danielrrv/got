@@ -6,6 +6,8 @@ import (
 	"crypto/sha1"
 	"encoding/binary"
 	"fmt"
+	"os"
+	"path/filepath"
 	// "os"
 	// "slices"
 )
@@ -25,6 +27,7 @@ type Byte4 [blockSize]byte
 type Bit32 uint32
 type Bit12 uint16
 
+
 func (b Bit32) Bytes() []byte {
 	rt := make([]byte, 4)
 	rt[0] = byte(b >> 24 & 0xFF)
@@ -42,7 +45,6 @@ func (b Bit12) Bytes() []byte {
 }
 
 func Bit12FromBytes(v []byte) Bit12 {
-	// fmt.Println(v)
 	if len(v) != 2 {
 		panic("bit12 does not have 2 bytes")
 	}
@@ -84,7 +86,6 @@ func (i *Index) SerializeIndex() []byte {
 	packet.Set(i.Signature[:], i.Version[:], i.Size.Bytes())
 	for _, entry := range i.Entries {
 		nameLength := Bit12(len(entry.PathName))
-		fmt.Println(nameLength)
 		packet.Set(entry.Ctime_s.Bytes(), entry.Mtime_s.Bytes())
 		packet.Set(entry.FileSize.Bytes(), entry.Hash, nameLength.Bytes(), []byte(entry.PathName))
 		packet.Set([]byte{0x00})
@@ -120,7 +121,7 @@ func DeserializeIndex(data []byte) *Index {
 		//filename length.
 		nameLength := Bit12FromBytes(data[(blockSize*3)+sha1.Size : (blockSize*3)+sha1.Size+2])
 		//34 bytes
-		fmt.Println(nameLength)
+	
 		PathName := string(data[(blockSize*3)+sha1.Size+2 : (blockSize*3)+sha1.Size+2+nameLength])
 		//34 + namelength
 		entries = append(entries, IndexEntry{
@@ -149,7 +150,7 @@ func (i *Index) parseIndex(data []byte) {
 }
 
 func (i *Index) refresh(repo *GotRepository) {
-	indexContent, err := ReadRepoFile(repo, "index")
+	indexContent, err := os.ReadFile(filepath.Join(repo.GotDir, "index"))
 	if err != nil {
 		panic(err)
 	}

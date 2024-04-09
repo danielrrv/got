@@ -16,23 +16,16 @@ const (
 func TestSerialize(t *testing.T) {
 	t.Run("Serialize/Serialize", func(t *testing.T) {
 		commit := internal.Commit{
-			Author:      "Daniel",
+			Author:      "Danielx",
 			Committer:   "Daniel Rodirguez",
 			Tree:        "3456787654334567",
 			Description: "Some beuatiful day",
 			Date:        "25-05-2023",
 			Parent:      "34567876543",
 		}
-
-		bt, err := commit.Serialize()
-		if err != nil {
-			t.Fatalf("Expected serialized to be bytes, %v", err.Error())
-		}
-		commit2 := new(internal.Commit)
-		err = commit2.Deserialize(bt)
-		if err != nil {
-			t.Fatalf("Expected deserialized back to Commit %v", err.Error())
-		}
+		var dummy internal.Commit
+		commit2 := dummy.Deserialize(commit.Serialize())
+	
 		if commit2.Author != commit.Author {
 			t.Fatalf("Expected commit2 to be equal to commit %s!=%s", commit.Author, commit2.Author)
 		}
@@ -50,11 +43,11 @@ func TestSerialize(t *testing.T) {
 		if err != nil {
 			t.Errorf("No repo found.")
 		}
-		bb, err := internal.Serialize(&commit)
-		if err != nil {
-			t.Errorf("expected serialize commit, %v", err.Error())
-		}
-		hash, err := internal.WriteObject(repo, bb, "commit")
+		// bb := commit.Serialize()
+		// if err != nil {
+		// 	t.Errorf("expected serialize commit, %v", err.Error())
+		// }
+		hash, err := internal.WriteObject(repo, commit, "commit")
 		if err != nil {
 			t.Errorf("no object written, %v", err.Error())
 		}
@@ -69,6 +62,7 @@ func TestSerialize(t *testing.T) {
 	})
 	t.Run("Read a commit object", func(t *testing.T) {
 		// t.FailNow()
+		
 		commit := internal.Commit{
 			Author:      "Daniel",
 			Committer:   "Daniel Rodirguez",
@@ -81,18 +75,18 @@ func TestSerialize(t *testing.T) {
 		if err != nil {
 			t.Errorf("No repo found.")
 		}
-		bb, err := internal.Serialize(&commit)
+		// bb := commit.Serialize()
 		if err != nil {
 			t.Errorf("expected serialize commit, %v", err.Error())
 		}
-		hash, err := internal.WriteObject(repo, bb, "commit")
+		hash, err := internal.WriteObject(repo, commit, "commit")
 		if err != nil {
 			t.Errorf("no object written, %v", err.Error())
 		}
-		commit2 := new(internal.Commit)
+		var dummy internal.Commit
 
 		obj, err := internal.ReadObject(repo, "commit", hash)
-		internal.Deserialize(commit2, obj)
+		commit2 := dummy.Deserialize(obj)
 		if err != nil {
 			t.Errorf("%v", err.Error())
 		}

@@ -4,28 +4,25 @@ import (
 	"bytes"
 	"compress/zlib"
 	"crypto/sha1"
+
+
+	// "encoding/binary"
 	"encoding/hex"
 	"errors"
-	// "fmt"
 
-	// "fmt"
+
 	"io"
-
+	"io/fs"
 	"os"
 	"path/filepath"
-	"reflect"
-	"strings"
 )
 
-type GotObject interface {
-	Commit | Blob
-}
 
 
 const (
-	tagName            = "object"
-	newLine           = '\n'
-	tab                = '\t'
+	tagName          = "object"
+	newLine          = '\n'
+	tab              = '\t'
 	commitHeaderName = string("commit")
 	treeHeaderName   = string("tree")
 	blobHeaderName   = string("blob")
@@ -35,57 +32,30 @@ var (
 	ErrorParsingObject       = errors.New("error parsing object")
 	ErrorIsNotObject         = errors.New("the pointer isn't an object")
 	ErrorIncorrectOBjectType = errors.New("incorrect object type")
+	ErrorMalformedObject     = errors.New("malformed object")
 )
 
-func Serialize[K GotObject](c *K) ([]byte, error) {
-	var out bytes.Buffer
-	t := reflect.TypeOf(*c)
-	v := reflect.ValueOf(*c)
 
-	if t.Kind() != reflect.Struct {
-		return nil, ErrorIsNotObject
-	}
-	for index := range t.NumField() {
-		out.Write([]byte(t.Field(index).Tag.Get(tagName)))
-		out.WriteByte(tab)
-		out.Write([]byte(v.Field(index).String()))
-		if t.NumField()-1 > index {
-			out.WriteByte(newLine)
-		}
-	}
-	return out.Bytes(), nil
+type GotObject interface {
+	Serialize() []byte
 }
 
-func Deserialize[K GotObject](c *K, b []byte) error {
-	t := reflect.TypeOf(*c)
-	v := reflect.ValueOf(c).Elem()
-	m := make(map[string]interface{})
-
-	lines := strings.Split(string(b), string(newLine))
-	for _, line := range lines {
-		elements := strings.Split(line, string(tab))
-		if len(elements) < 2 {
-			return ErrorParsingObject
-		}
-		m[elements[0]] = elements[1]
-	}
-	for i := range t.NumField() {
-		// fieldTagName := t.Field(i).Tag.Get(tagName)
-		field := v.FieldByName(t.Field(i).Name)
-		if !field.CanSet() {
-			return ErrorParsingObject
-		}
-		field.Set(reflect.ValueOf(m[t.Field(i).Tag.Get(tagName)]))
-	}
-	return nil
+type Object struct {
+	Header []byte
+	Pad1   byte //0x20
+	Size   uint32
+	Pad2   byte //0x00
+	Data   []byte
 }
 
+// Zlib compress data.
 func Compress(b []byte, c *bytes.Buffer) {
 	w := zlib.NewWriter(c)
 	w.Write(b)
 	w.Close()
 }
 
+// Zlib uncompress data.
 func Decompress(b []byte, c *bytes.Buffer) {
 
 	r, err := zlib.NewReader(bytes.NewReader(b))
@@ -100,22 +70,27 @@ func Decompress(b []byte, c *bytes.Buffer) {
 	r.Close()
 }
 
+// Read any got object given the hash/object id and header(commit, tree, tags, blob)
 func ReadObject(repo *GotRepository, header string, hash string) ([]byte, error) {
+	//decompress(header[unbound size uint8]|0x20[uint8 x 1]|size[uint32 x 1]|0x00[uint8 x 1]|data[unbound size uint8])
 	sizePos := len(header) + 1
-	dataStartPos := len(header) + 3
+	// dataStartPos := len(header) + 3	
 	content, err := os.ReadFile(filepath.Join(repo.GotDir, gotRepositoryDirObjects, hash[:2], hash[2:]))
 	if err != nil {
 		return nil, err
 	}
 	var bb bytes.Buffer
 	Decompress(content, &bb)
+
+
 	if bytes.Compare(bb.Bytes()[0:len(header)], []byte(header)) > 0 {
 		return nil, ErrorIncorrectOBjectType
 	}
 	if bb.Bytes()[len(header)] != 0x20 {
-		return nil, errors.New("malformed object")
+		return nil, ErrorMalformedObject
 	}
-	data := bb.Bytes()[dataStartPos : int(bb.Bytes()[sizePos])+dataStartPos]
+	sizeOfData := Bit32FromBytes(bb.Bytes()[sizePos:sizePos + 4])
+	data := bb.Bytes()[sizePos+5: sizePos + 5 + int(sizeOfData)]
 	return data, nil
 
 }
@@ -124,6 +99,7 @@ func RemoveObjectFrom(repo *GotRepository, hash string) error {
 	return os.Remove(filepath.Join(repo.GotDir, gotRepositoryDirObjects, hash[:2], hash[2:]))
 }
 
+// Create sha1 hash from data. TODO: Open to other hasher.
 func CreateSha1(data []byte) []byte {
 	hash := make([]byte, sha1.Size*2)
 	hasher := sha1.New()
@@ -135,47 +111,63 @@ func CreateSha1(data []byte) []byte {
 	return hash
 }
 
-func BuildObject(header string, data []byte) []byte {
-	buf := make([]byte, 0)
-	//Build object.
-	buf = append(buf, []byte(header)...)
-	buf = append(buf, 0x20)
-	buf = append(buf, byte(len(data)))
-	buf = append(buf, 0x00)
-	buf = append(buf, data...)
-	return buf
+func newObject(header string, g GotObject) *Object {
+	data := g.Serialize()
+	return &Object{
+		Header: []byte(header),
+		Pad1:   0x20,
+		Size:   uint32(len(data)),
+		Pad2:   0x00,
+		Data:   data,
+	}
 }
 
-func HashToPath(repo * GotRepository,hash string)(string, error){
-	if len(hash) != sha1.Size * 2{
+// Build object from data.
+func BuildObject(header string, g GotObject) []byte {
+	obj := newObject(header, g)
+	packet :=AllocatePacket(0)
+	// header[unbound size uint8]|0x20[uint8 x 1]|size[uint32 x 1]|0x00[uint8 x 1]|data[unbound size uint8]
+	packet.Set(obj.Header, []byte{obj.Pad1}, Bit32(obj.Size).Bytes(), []byte{obj.Pad2}, obj.Data) 
+	return packet.buff
+}
+
+// Util function to obtain the object's path given the hash.
+func HashToPath(repo *GotRepository, hash string) (string, error) {
+	if len(hash) != sha1.Size*2 {
 		return "", errors.New("inconsistent object id")
-	} 
+	}
 	return filepath.Join(repo.GotDir, gotRepositoryDirObjects, hash[:2], hash[2:]), nil
 }
 
-func CreatePossibleObjectFromData(repo *GotRepository, objD []byte, header string) (string, error){
+// Create in-memory the object with its hash given the data and object type.
+func CreatePossibleObjectFromData(repo *GotRepository, g GotObject, header string) (string, error) {
 	//1. Build the object
-	rawObj := BuildObject(header, objD)
+	rawObj := BuildObject(header, g)
 	//2. Derive the has
 	hash := CreateSha1(rawObj)
 	return string(hash), nil
 }
 
-func WriteObject(repo *GotRepository, objD []byte, header string) (string, error) {
+// [Persist] the object in disk given the data. CratePossibleObject must have generated the same hash. Use cautionsly.
+func WriteObject(repo *GotRepository, g GotObject, header string) (string, error) {
 
 	//1. Build the object
-	rawObj := BuildObject(header, objD)
+	rawObj := BuildObject(header, g)
 	//2. Derive the has
 	hash := CreateSha1(rawObj)
 	//3. Compress
 	var bb bytes.Buffer
 	Compress(rawObj, &bb)
-	//4. Write on disk
-	TryCreateFolderIn(filepath.Join(repo.GotDir, gotRepositoryDirObjects), string(hash[:2]))
+	//4. Object parent folder not created.
+	if dir := filepath.Join(repo.GotDir, gotRepositoryDirObjects, string(hash[:2])); !pathExist(dir, true) {
+		os.Mkdir(dir, fs.ModePerm|0644)
+	}
+	//Create final path from the hash.
 	objPath, err := HashToPath(repo, string(hash))
-	if err != nil{
+	if err != nil {
 		return "", err
 	}
+	//5. Write the data in the object. Corruption may happen.
 	file, err := os.OpenFile(objPath, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return "", err

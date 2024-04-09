@@ -11,30 +11,42 @@ import (
 )
 
 var (
-	ErrorAlreadyExist = errors.New("file already exist")
-	ErrorInvalidHash       = errors.New("invalid sha1 hash")
-	NotDataToWrite    = errors.New("insufficient data to write")
-	NotBlobFound      = errors.New("no blob found in the path provided")
+	ErrorAlreadyExist   = errors.New("file already exist")
+	ErrorInvalidHash    = errors.New("invalid sha1 hash")
+	ErrorNotDataToWrite = errors.New("insufficient data to write")
+	ErrorNotBlobFound   = errors.New("no blob found in the path provided")
 )
 
 type Blob struct {
-	Repo   *GotRepository
-	Commit *Commit
-	Path   string
-	Hash   string
-	Data   string
+	Repo        *GotRepository
+	Commit      *Commit
+	Path        string
+	Hash        string
+	FileContent []byte
 }
 
-func (b *Blob) IntermediateBlobObject() (hash string, err error){
-	hash, err = CreatePossibleObjectFromData(b.Repo,[]byte(b.Data), blobHeaderName)
+func (b Blob) Serialize() []byte {
+	content, err := os.ReadFile(b.Path)
+	if err != nil {
+		panic(err)
+	}
+	return content
+}
+func (b Blob) Deserialize(d []byte) Blob {
+	b.FileContent = d
+	return b
+}
+
+func (b *Blob) IntermediateBlobObject() (hash string, err error) {
+	hash, err = CreatePossibleObjectFromData(b.Repo, *b, blobHeaderName)
 	return hash, err
 }
 
 func (b *Blob) Persist() error {
-	if len(b.Data) == 0 {
-		return NotDataToWrite
+	if len(b.FileContent) == 0 {
+		return ErrorNotDataToWrite
 	}
-	hash, err := WriteObject(b.Repo, []byte(b.Data), blobHeaderName)
+	hash, err := WriteObject(b.Repo, *b, blobHeaderName)
 	if err != nil {
 		return err
 	}
@@ -47,7 +59,6 @@ func (b *Blob) Persist() error {
 	return nil
 }
 
-
 func ReadBlob(repo *GotRepository, objId string) (*Blob, error) {
 	path, err := HashToPath(repo, objId)
 	if err != nil {
@@ -59,17 +70,16 @@ func ReadBlob(repo *GotRepository, objId string) (*Blob, error) {
 	}
 
 	return &Blob{
-		Repo:   repo,
-		Hash:   objId,
-		Data:   string(data),
-		Path:   path,
-		Commit: nil,
+		Repo:        repo,
+		Hash:        objId,
+		FileContent: data,
+		Path:        path,
+		Commit:      nil,
 	}, nil
 
 }
 
-
-//Deprecated
+// Deprecated
 func BlobFromPath(repo *GotRepository, path string) (*Blob, error) {
 	var realP string
 	isAbs := filepath.IsAbs(path)
@@ -94,7 +104,7 @@ func BlobFromPath(repo *GotRepository, path string) (*Blob, error) {
 		}
 	}
 	if !exist {
-		return nil, NotBlobFound
+		return nil, ErrorNotBlobFound
 	}
 	content, err := os.ReadFile(realP)
 	if err != nil {
@@ -105,11 +115,11 @@ func BlobFromPath(repo *GotRepository, path string) (*Blob, error) {
 	Decompress(content, &c)
 
 	return &Blob{
-		Repo:   repo,
-		Hash:   fmt.Sprintf("%s%s", filepath.Dir(realP), filepath.Base(realP)),
-		Data:  	c.String(),
-		Path:   realP,
-		Commit: nil,
+		Repo:        repo,
+		Hash:        fmt.Sprintf("%s%s", filepath.Dir(realP), filepath.Base(realP)),
+		FileContent: c.Bytes(),
+		Path:        realP,
+		Commit:      nil,
 	}, nil
 }
 

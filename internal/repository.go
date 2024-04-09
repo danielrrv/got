@@ -23,6 +23,7 @@ var (
 	ErrorPathDoesNotExist       = errors.New("path does not exist")
 	ErrorRepositoryDoesNotExist = errors.New("repository does not exist")
 	ErrorLoadConfig             = errors.New("unable to load the configuration")
+	ErrorOpeningFile            = errors.New("unable to find the file in the repo")
 )
 var (
 	VersionRegex = regexp.MustCompile("^version")
@@ -38,101 +39,98 @@ type GotRepository struct {
 	GotConfig GotConfig
 	// .got folder name.
 	GotDir string
-	index  *Index
+	// Temporary database.
+	index *Index
 }
 
-func ReadRepoFile(repo *GotRepository, fileDir string) ([]byte, error) {
-	content, err := os.ReadFile(filepath.Join(repo.GotDir, fileDir))
-	if err != nil {
-		return nil, err
-	}
-	return content, nil
-}
-
+// Create a file inside of the repo dir(.got)
 func CreateRepoFile(repo *GotRepository, filename string, data []byte) ([]byte, error) {
-	path := filepath.Join(repo.GotDir, gotRootRepositoryDir, filename)
+	path := filepath.Join(repo.GotDir, filename)
+	//TODO: Permission rw for owner, read for rest.
+	//if file exist, the data will be appended.
 	if file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644); err == nil {
 		defer file.Close()
 		if _, err := file.Write(data); err != nil {
 			return nil, err
 		}
 	}
-	return nil, errors.New("unable to find the file in the repo")
+	return nil, ErrorOpeningFile
 }
 
-func newGotRepository(rootP string) (*GotRepository, error) {
-	if fi, err := os.Stat(rootP); errors.Is(err, os.ErrNotExist) || !fi.IsDir() {
-		return nil, fmt.Errorf("path isn't either a dir or doesn't exists")
-	}
-	return &GotRepository{
-		GotTree:   rootP,
-		GotDir:    filepath.Join(rootP, gotRootRepositoryDir),
-		GotConfig: GotConfig{},
-	}, nil
-}
-
+// Set the repo configuration after setup. Future usage.
 func (gr *GotRepository) SetConfig(config interface{}) {
 	gr.GotConfig = config.(GotConfig)
 }
 
-func TryCreateFileIn(path, filename string) error {
-	if filepath.IsAbs(path) && !pathExist(path, true) {
-		os.Mkdir(path, fs.ModeDir|0750)
+func FindRecursivelyFolder(path string, folder string, until int) (string, error) {
+	if until == 0 {
+		return "", errors.New("recursive search exhausted")
 	}
-	filePath := filepath.Join(path, filename)
-	file, err := os.Create(filePath)
-	if err != nil {
-		return err
+	if pathExist(filepath.Join(path, folder), true) {
+		return path, nil
 	}
-	file.Chmod(0750)
-	return nil
+	return FindRecursivelyFolder(filepath.Dir(path), folder, until-1)
 }
 
-func TryCreateFolderIn(path, dir string) {
-	dirPath := filepath.Join(path, dir)
-	if !pathExist(dirPath, true) {
-		os.Mkdir(dirPath, fs.ModeDir|0750)
-	}
-}
-
+// Find the repo if exist in the path or create new one.
 func FindOrCreateRepo(path string) (*GotRepository, error) {
-	gotRootPath := filepath.Join(path, gotRootRepositoryDir)
-	versionPathFile := filepath.Join(path, gotRootRepositoryDir, "version")
 	if !pathExist(path, true) {
 		return nil, ErrorPathDoesNotExist
 	}
-	if pathExist(gotRootPath, true) && pathExist(versionPathFile, false) {
-		content, err := os.ReadFile(versionPathFile)
+	// Default folder location in case not .got folder found.
+	gotDir := filepath.Join(path, gotRootRepositoryDir)
+	treeDir := path
+	dirPath, err := FindRecursivelyFolder(path, gotRootRepositoryDir, 4)
+	// No error found, then dirPath is the rootDir where .got lives.
+	if err == nil{
+		treeDir = dirPath
+		gotDir = filepath.Join(dirPath, gotRootRepositoryDir)
+	} 
+	// Possible repo representation. No folder created yet.
+	repo := &GotRepository{
+		GotTree: treeDir,
+		GotDir:   gotDir,
+		GotConfig: GotConfig{},
+	}
+	//The folder path/.got exist and it has a version file that will determine this is already created repo.
+	if pathExist(filepath.Join(repo.GotDir, "version"), false) {
+		content, err := os.ReadFile(filepath.Join(repo.GotDir, "version"))
 		if err != nil {
 			panic(err)
 		}
+		// The regex acts a validation mechanism to determine the repo existance. Can be changed.
 		if VersionRegex.Match(content) {
-			return &GotRepository{
-				GotTree:   path,
-				GotDir:    filepath.Join(path, gotRootRepositoryDir),
-				GotConfig: GotConfig{},
-			}, nil
+			return repo, nil
 		}
 	}
-	repo, err := newGotRepository(path)
-	if err != nil {
+	//The path/.got doesn't exist. Let's create it.
+	if dir := gotDir; !pathExist(dir, true) {
+		os.Mkdir(dir, fs.ModePerm|0755)
+	}
+	//Create the version's file and write in it.
+	if _, err := CreateRepoFile(repo, "version", []byte(fmt.Sprintf("version: %s", version))); err != nil {
 		panic(err)
 	}
-	TryCreateFolderIn(path, gotRootRepositoryDir)
-
-	if versionFile, err := os.OpenFile(filepath.Join(gotRootPath, "version"), os.O_RDWR|os.O_CREATE, 0644); err == nil {
-		defer versionFile.Close()
-		if _, err := versionFile.Write([]byte(fmt.Sprintf("version: %s", version))); err != nil {
-			panic(err)
-		}
+	//Create path/refs
+	if dir := filepath.Join(gotDir, gotRepositoryDirRefs); !pathExist(dir, true) {
+		os.Mkdir(dir, fs.ModePerm|0755)
 	}
-	TryCreateFolderIn(gotRootPath, gotRepositoryDirRefs)
-	TryCreateFolderIn(gotRootPath, gotRepositoryDirObjects)
-	TryCreateFolderIn(gotRootPath, filepath.Join(gotRepositoryDirRefs, gotRepositoryDirRefsHeads))
-	TryCreateFolderIn(gotRootPath, filepath.Join(gotRepositoryDirRefs, gotRepositoryDirRefsTags))
+	//Create path/objects
+	if dir := filepath.Join(gotDir, gotRepositoryDirObjects); !pathExist(dir, true) {
+		os.Mkdir(dir, fs.ModePerm|0755)
+	}
+	//Create path/refs/heads
+	if dir := filepath.Join(gotDir, gotRepositoryDirRefs, gotRepositoryDirRefsHeads); !pathExist(dir, true) {
+		os.Mkdir(dir, fs.ModePerm|0755)
+	}
+	//Create path/refs/tags
+	if dir := filepath.Join(gotDir, gotRepositoryDirRefs, gotRepositoryDirRefsTags); !pathExist(dir, true) {
+		os.Mkdir(dir, fs.ModePerm|0755)
+	}
 	return repo, nil
 }
 
+// Util function to determine whether the file/dir exists.
 func pathExist(path string, mustBeDir bool) bool {
 	fi, err := os.Stat(path)
 	if errors.Is(err, os.ErrNotExist) {
