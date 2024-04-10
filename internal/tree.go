@@ -41,17 +41,17 @@ type TreeItem struct {
 	Children []TreeItem
 }
 
-type Tree struct {
-	Hash   string
-	Buffer []TreeItem
-	Size   int
-}
-
 type OFS struct {
 	path string
 	mode Mode
 }
 
+// Location implements GotObject.
+func (o OFS) Location() string {
+	return o.path
+}
+
+// Read the user file.
 func (o OFS) Serialize() []byte {
 	content, err := os.ReadFile(o.path)
 	if err != nil {
@@ -59,6 +59,11 @@ func (o OFS) Serialize() []byte {
 	}
 	return content
 }
+
+func (t TreeItem) Location() string {
+	return t.Path
+}
+
 
 func (o *OFS) String() {
 	fmt.Printf("%s,%s", o.path, string(o.mode))
@@ -161,7 +166,6 @@ func isFile(path string) bool {
 	return true
 }
 
-
 // Convert TreeItem into []bytes. No recursive.
 func (t TreeItem) Serialize() []byte {
 	bb := make([]byte, 0)
@@ -207,3 +211,4 @@ func (t TreeItem) Deserialize(d []byte) TreeItem {
 	}
 	return t
 }
+

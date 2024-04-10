@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	// "os"
 	// "slices"
 )
@@ -19,15 +20,19 @@ const (
 )
 
 var (
+	// Index signature
 	Signature    = Byte4{'D', 'I', 'R', 'C'}
+	// Index version
 	IndexVersion = Byte4{'1', '0', '0'}
 )
 
 type Byte4 [blockSize]byte
+// uint32 base type
 type Bit32 uint32
+// representation of 12 bits block.
 type Bit12 uint16
 
-
+//Convert uint32 into 4 bytes of uint8 ByteOrder BigIndian.
 func (b Bit32) Bytes() []byte {
 	rt := make([]byte, 4)
 	rt[0] = byte(b >> 24 & 0xFF)
@@ -36,7 +41,7 @@ func (b Bit32) Bytes() []byte {
 	rt[3] = byte(b & 0xFF)
 	return rt
 }
-
+//Convert uint16 into 2 bytes of uint8 ByteOrder BigIndian of 13 bits only considered.
 func (b Bit12) Bytes() []byte {
 	rt := make([]byte, 2)
 	rt[0] = byte(b >> 8 & 0x0F)
@@ -44,6 +49,7 @@ func (b Bit12) Bytes() []byte {
 	return rt
 }
 
+// Cast 2 bytes into uint16 type.
 func Bit12FromBytes(v []byte) Bit12 {
 	if len(v) != 2 {
 		panic("bit12 does not have 2 bytes")
@@ -53,6 +59,7 @@ func Bit12FromBytes(v []byte) Bit12 {
 	return (Bit12)(binary.BigEndian.Uint16(v))
 }
 
+// cast 4 bytes into uin32 type
 func Bit32FromBytes(v []byte) Bit32 {
 	return (Bit32)(binary.BigEndian.Uint32(v))
 }
@@ -69,20 +76,21 @@ type IndexEntry struct {
 }
 
 type Index struct {
+	// Signature of the index.
 	Signature Byte4
+	// Version of the index.
 	Version   Byte4
+	// Number of entries
 	Size      Bit32
+	// Entries of the index.
 	Entries   []IndexEntry
 }
 
-var TheIndex *Index
 
-func init() {
-
-}
-
+// Convert index non-zero pointer into bytes.
 func (i *Index) SerializeIndex() []byte {
-	packet := AllocatePacket(1024 * 100)
+	packet := AllocatePacket(0)
+	//[signature| version | size of entries | entries...[ctime(uint32)|mtime(uint32)|filesize(uint32)|hash|nameLength(uint32)| pathName] ]
 	packet.Set(i.Signature[:], i.Version[:], i.Size.Bytes())
 	for _, entry := range i.Entries {
 		nameLength := Bit12(len(entry.PathName))
@@ -93,7 +101,8 @@ func (i *Index) SerializeIndex() []byte {
 	return packet.buff
 }
 
-func DeserializeIndex(data []byte) *Index {
+// Convert bytes into Index pointer.
+func (index * Index)DeserializeIndex(data []byte)  {
 
 	if !bytes.Equal(data[0:blockSize], Signature[:]) {
 		panic("Invalid index.")
@@ -101,13 +110,11 @@ func DeserializeIndex(data []byte) *Index {
 	if !bytes.Equal(data[blockSize:blockSize*2], IndexVersion[:]) {
 		panic("Invalid index.")
 	}
-	index := new(Index)
 	index.Signature = Signature
 	index.Version = IndexVersion
 	sizeOfEntry := Bit32FromBytes(data[blockSize*2 : blockSize*3])
 	data = data[blockSize*3:]
 	index.Size = sizeOfEntry
-	// os.Exit(1)
 	entries := make([]IndexEntry, 0)
 	for sizeOfEntry > 0 {
 		//Times
@@ -139,21 +146,14 @@ func DeserializeIndex(data []byte) *Index {
 	if len(entries) != int(index.Size) {
 		panic("corruption in deserialize index")
 	}
-	index.Entries = append(index.Entries, entries...)
-	// copy(index.Entries, entries)
-	return index
+	index.Entries = slices.Clone(entries)
 }
 
-func (i *Index) parseIndex(data []byte) {
-	i.Signature = Signature
-	i.Version = IndexVersion
-}
-
-func (i *Index) refresh(repo *GotRepository) {
+//Read from disk the latest state of the index. 
+func (i *Index) Refresh(repo *GotRepository) {
 	indexContent, err := os.ReadFile(filepath.Join(repo.GotDir, "index"))
 	if err != nil {
 		panic(err)
 	}
-	i.parseIndex(indexContent)
-
+	i.DeserializeIndex(indexContent)
 }

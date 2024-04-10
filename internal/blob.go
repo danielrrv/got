@@ -1,30 +1,37 @@
 package internal
 
 import (
-	"bytes"
-	"crypto/sha1"
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 )
 
 var (
-	ErrorAlreadyExist   = errors.New("file already exist")
-	ErrorInvalidHash    = errors.New("invalid sha1 hash")
+	//File already exist.
+	ErrorAlreadyExist = errors.New("file already exist")
+	// Invalid sha1 size.
+	ErrorInvalidHash = errors.New("invalid sha1 hash")
+	//No data provided.
 	ErrorNotDataToWrite = errors.New("insufficient data to write")
-	ErrorNotBlobFound   = errors.New("no blob found in the path provided")
+	// No file found.
+	ErrorNotBlobFound = errors.New("no blob found in the path provided")
 )
 
 type Blob struct {
-	Repo        *GotRepository
-	Commit      *Commit
-	Path        string
-	Hash        string
+	// The repo representation. It can be null in some runtine moments.
+	Repo *GotRepository
+	// The commit associated with the blob obj. It can be null in some runtime moments.
+	Commit *Commit
+	// Tree location on the user location. Similar to OFS.
+	Path string
+	// The hash associated. The hash <-> object-path can be derived one from the other.
+	Hash string
+	// Decompress blob data.
 	FileContent []byte
 }
 
+// Reads the blob raw data from the path/
 func (b Blob) Serialize() []byte {
 	content, err := os.ReadFile(b.Path)
 	if err != nil {
@@ -32,16 +39,23 @@ func (b Blob) Serialize() []byte {
 	}
 	return content
 }
+
+// The deserialization of the blob is its content.
 func (b Blob) Deserialize(d []byte) Blob {
 	b.FileContent = d
 	return b
 }
 
-func (b *Blob) IntermediateBlobObject() (hash string, err error) {
-	hash, err = CreatePossibleObjectFromData(b.Repo, *b, blobHeaderName)
-	return hash, err
+// Blob path in the .got/objects folder.
+func (b Blob) Location() string {
+	if b.Hash == "" {
+		panic("hash no generated yet")
+	}
+	return filepath.Join(b.Hash[:2], b.Hash[2:])
 }
 
+
+// Persist on this the blob.
 func (b *Blob) Persist() error {
 	if len(b.FileContent) == 0 {
 		return ErrorNotDataToWrite
@@ -59,7 +73,8 @@ func (b *Blob) Persist() error {
 	return nil
 }
 
-func ReadBlob(repo *GotRepository, objId string) (*Blob, error) {
+// Read the blob from got object folders.
+func ReadBlobObject(repo *GotRepository, objId string) (*Blob, error) {
 	path, err := HashToPath(repo, objId)
 	if err != nil {
 		return nil, err
@@ -76,56 +91,42 @@ func ReadBlob(repo *GotRepository, objId string) (*Blob, error) {
 		Path:        path,
 		Commit:      nil,
 	}, nil
-
 }
 
-// Deprecated
-func BlobFromPath(repo *GotRepository, path string) (*Blob, error) {
+// Create a new instance of blob from the given user path.
+func BlobFromUserPath(repo *GotRepository, path string) (*Blob, error) {
 	var realP string
 	isAbs := filepath.IsAbs(path)
+	// Implementation to use the absolute path as long as it is. Otherwise use the constructed.
 	if isAbs {
 		realP = path
 	} else {
-		realP = filepath.Join(repo.GotDir, gotRepositoryDirObjects, filepath.Dir(path), filepath.Base(path))
+		realP = filepath.Join(repo.GotTree, path)
 	}
-
+	// The path is well-formed.
 	if !fs.ValidPath(realP) {
 		return nil, ErrorPathInvalid
 	}
-
-	dirs, err := os.ReadDir(filepath.Join(repo.GotDir, gotRepositoryDirObjects, filepath.Dir(realP)))
-	if err != nil {
-		return nil, err
-	}
-	exist := false
-	for _, dir := range dirs {
-		if filepath.Base(realP) == dir.Name() && !dir.IsDir() {
-			exist = true
-		}
-	}
-	if !exist {
-		return nil, ErrorNotBlobFound
-	}
+	// User blob content.
 	content, err := os.ReadFile(realP)
 	if err != nil {
 		return nil, err
 	}
-	var c bytes.Buffer
-
-	Decompress(content, &c)
-
-	return &Blob{
+	//Create base blob object. At least the content must be filled out.
+	blob := Blob{
 		Repo:        repo,
-		Hash:        fmt.Sprintf("%s%s", filepath.Dir(realP), filepath.Base(realP)),
-		FileContent: c.Bytes(),
+		Hash:        "",
+		FileContent: content,
 		Path:        realP,
 		Commit:      nil,
-	}, nil
+	}
+	// Create  possible hash build the base object.
+	possibleHash, err := CreatePossibleObjectFromData(repo, blob, blobHeaderName)
+	if err != nil {
+		panic(err)
+	}
+	blob.Hash = possibleHash
+	return &blob, nil
 }
 
-func BlobFromHash(repo *GotRepository, hash string) (*Blob, error) {
-	if len(hash) != sha1.Size*2 {
-		return nil, ErrorInvalidHash
-	}
-	return BlobFromPath(repo, filepath.Join(repo.GotDir, gotRepositoryDirObjects, hash[:2], hash[2:]))
-}
+

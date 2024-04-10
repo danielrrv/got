@@ -37,14 +37,22 @@ var (
 
 
 type GotObject interface {
+	// Implementation to transform struct to bytes.
 	Serialize() []byte
+	// Implementation to get the object location on got/objects folders.
+	Location() string
 }
 
 type Object struct {
+	// Type of object. blob, tree, commit or tag.
 	Header []byte
+	// Seperator of the header.
 	Pad1   byte //0x20
+	// Size of the Data
 	Size   uint32
+	// Separator of the Data
 	Pad2   byte //0x00
+	// Actual Object data.
 	Data   []byte
 }
 
@@ -79,22 +87,25 @@ func ReadObject(repo *GotRepository, header string, hash string) ([]byte, error)
 	if err != nil {
 		return nil, err
 	}
+	// Decompress the object.
 	var bb bytes.Buffer
 	Decompress(content, &bb)
-
-
 	if bytes.Compare(bb.Bytes()[0:len(header)], []byte(header)) > 0 {
 		return nil, ErrorIncorrectOBjectType
 	}
+	//Implementation to validate the correctness at this point.
 	if bb.Bytes()[len(header)] != 0x20 {
 		return nil, ErrorMalformedObject
 	}
+	//Size of data is uint32
 	sizeOfData := Bit32FromBytes(bb.Bytes()[sizePos:sizePos + 4])
+	// after :sizePos + 4, data comes.
 	data := bb.Bytes()[sizePos+5: sizePos + 5 + int(sizeOfData)]
 	return data, nil
 
 }
 
+// Remove object given the objectId.
 func RemoveObjectFrom(repo *GotRepository, hash string) error {
 	return os.Remove(filepath.Join(repo.GotDir, gotRepositoryDirObjects, hash[:2], hash[2:]))
 }
@@ -111,6 +122,7 @@ func CreateSha1(data []byte) []byte {
 	return hash
 }
 
+// Base method to abstract serialization of any GotObject.
 func newObject(header string, g GotObject) *Object {
 	data := g.Serialize()
 	return &Object{
@@ -131,7 +143,7 @@ func BuildObject(header string, g GotObject) []byte {
 	return packet.buff
 }
 
-// Util function to obtain the object's path given the hash.
+// obtain the object's path given the hash.
 func HashToPath(repo *GotRepository, hash string) (string, error) {
 	if len(hash) != sha1.Size*2 {
 		return "", errors.New("inconsistent object id")

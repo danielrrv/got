@@ -47,7 +47,7 @@ func TestConvertBit32ToByte(t *testing.T) {
 		}
 		data := the_index.SerializeIndex()
 		fmt.Printf("%v\n", data)
-		otherIndex := internal.DeserializeIndex(data)
+		otherIndex := the_index.DeserializeIndex(data)
 		for _,entry := range otherIndex.Entries{
 			fmt.Printf("hash=%v\tpath=%s\n",entry.Hash, entry.PathName)
 		}

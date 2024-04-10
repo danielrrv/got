@@ -29,6 +29,6 @@ func TestTree(t *testing.T) {
 		files := []string{"test/a/co.txt", "test/a/c/cx.txt", "test/a/b/mx.txt", "test/a/b/jx.txt"}
 		m := internal.CreateTreeFromFiles(repo, files)
 		tree :=internal.FromMapToTree(repo,m, "test")
-		internal.TraverseTree(repo, tree)
+		internal.TraverseTree(repo, tree, func(ti internal.TreeItem) {}, func(ti internal.TreeItem) {})
 	})
 }
