@@ -40,27 +40,34 @@ type GotRepository struct {
 	// .got folder name.
 	GotDir string
 	// Temporary database.
-	index *Index
+	Index *Index
 }
 
 // Create a file inside of the repo dir(.got)
-func CreateRepoFile(repo *GotRepository, filename string, data []byte) ([]byte, error) {
+func CreateOrUpdateRepoFile(repo *GotRepository, filename string, data []byte) error {
 	path := filepath.Join(repo.GotDir, filename)
-	//TODO: Permission rw for owner, read for rest.
-	//if file exist, the data will be appended.
-	if file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644); err == nil {
+	_, err := os.Stat(path)
+
+	// The error is different from `file doesn't exist` then return.
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	// The file either doesn't exist or user want to write in any case on it.
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0644)
+	if err == nil {
 		defer file.Close()
 		if _, err := file.Write(data); err != nil {
-			return nil, err
+			return err
 		}
+		return nil
 	}
-	return nil, ErrorOpeningFile
+	return err
 }
 
 // Set the repo configuration after setup. Future usage.
-func (gr *GotRepository) SetConfig(config interface{}) {
-	gr.GotConfig = config.(GotConfig)
-}
+// func (gr *GotRepository) SetConfig(config map[string]interface{}) {
+// 	gr.GotConfig = config.(GotConfig)
+// }
 
 func FindRecursivelyFolder(path string, folder string, until int) (string, error) {
 	if until == 0 {
@@ -72,6 +79,12 @@ func FindRecursivelyFolder(path string, folder string, until int) (string, error
 	return FindRecursivelyFolder(filepath.Dir(path), folder, until-1)
 }
 
+// This must guarantee that folders exists otherwise it must create them from scratch
+//
+// Also, this is the place where the index is refreshed from disk. It doesn't exist yet, it
+// it must be created. If exists already, just refresh.
+//
+// To prove the repo existance, we can check the index file has data inside.
 // Find the repo if exist in the path or create new one.
 func FindOrCreateRepo(path string) (*GotRepository, error) {
 	if !pathExist(path, true) {
@@ -82,51 +95,67 @@ func FindOrCreateRepo(path string) (*GotRepository, error) {
 	treeDir := path
 	dirPath, err := FindRecursivelyFolder(path, gotRootRepositoryDir, 4)
 	// No error found, then dirPath is the rootDir where .got lives.
-	if err == nil{
+	if err == nil {
 		treeDir = dirPath
 		gotDir = filepath.Join(dirPath, gotRootRepositoryDir)
-	} 
+	}
 	// Possible repo representation. No folder created yet.
 	repo := &GotRepository{
-		GotTree: treeDir,
-		GotDir:   gotDir,
+		GotTree:   treeDir,
+		GotDir:    gotDir,
 		GotConfig: GotConfig{},
+		Index:     NewIndex(),
 	}
 	//The folder path/.got exist and it has a version file that will determine this is already created repo.
-	if pathExist(filepath.Join(repo.GotDir, "version"), false) {
-		content, err := os.ReadFile(filepath.Join(repo.GotDir, "version"))
+	// The existance of index doesn't guarantee that the others important folders are created.
+	if pathExist(filepath.Join(repo.GotDir, "index"), false) && pathExist(filepath.Join(repo.GotDir, gotRepositoryDirObjects), false) {
+		content, err := os.ReadFile(filepath.Join(repo.GotDir, "index"))
 		if err != nil {
 			panic(err)
 		}
-		// The regex acts a validation mechanism to determine the repo existance. Can be changed.
-		if VersionRegex.Match(content) {
+		if len(content) > 0 {
+			repo.Index.DeserializeIndex(content)
 			return repo, nil
+		} else {
+			goto IndexFromScratch
 		}
+		// Otherwise returns default repo with index nil.
+	} else {
+		//The path/.got doesn't exist. Let's create it.
+		if dir := gotDir; !pathExist(dir, true) {
+			os.Mkdir(dir, fs.ModePerm|0755)
+		}
+		//Create the version's file and write in it.
+		if err := CreateOrUpdateRepoFile(repo, "version", []byte(fmt.Sprintf("version: %s", version))); err != nil {
+			panic(err)
+		}
+
+		//Create path/refs
+		if dir := filepath.Join(gotDir, gotRepositoryDirRefs); !pathExist(dir, true) {
+			os.Mkdir(dir, fs.ModePerm|0755)
+		}
+		//Create path/objects
+		if dir := filepath.Join(gotDir, gotRepositoryDirObjects); !pathExist(dir, true) {
+			os.Mkdir(dir, fs.ModePerm|0755)
+		}
+		//Create path/refs/heads
+		if dir := filepath.Join(gotDir, gotRepositoryDirRefs, gotRepositoryDirRefsHeads); !pathExist(dir, true) {
+			os.Mkdir(dir, fs.ModePerm|0755)
+		}
+		//Create path/refs/tags
+		if dir := filepath.Join(gotDir, gotRepositoryDirRefs, gotRepositoryDirRefsTags); !pathExist(dir, true) {
+			os.Mkdir(dir, fs.ModePerm|0755)
+		}
+		goto IndexFromScratch
 	}
-	//The path/.got doesn't exist. Let's create it.
-	if dir := gotDir; !pathExist(dir, true) {
-		os.Mkdir(dir, fs.ModePerm|0755)
-	}
+	//Index doesn't exist at all.
+IndexFromScratch:
+	indexData := repo.Index.SerializeIndex()
 	//Create the version's file and write in it.
-	if _, err := CreateRepoFile(repo, "version", []byte(fmt.Sprintf("version: %s", version))); err != nil {
+	if err := CreateOrUpdateRepoFile(repo, "index", indexData); err != nil {
 		panic(err)
 	}
-	//Create path/refs
-	if dir := filepath.Join(gotDir, gotRepositoryDirRefs); !pathExist(dir, true) {
-		os.Mkdir(dir, fs.ModePerm|0755)
-	}
-	//Create path/objects
-	if dir := filepath.Join(gotDir, gotRepositoryDirObjects); !pathExist(dir, true) {
-		os.Mkdir(dir, fs.ModePerm|0755)
-	}
-	//Create path/refs/heads
-	if dir := filepath.Join(gotDir, gotRepositoryDirRefs, gotRepositoryDirRefsHeads); !pathExist(dir, true) {
-		os.Mkdir(dir, fs.ModePerm|0755)
-	}
-	//Create path/refs/tags
-	if dir := filepath.Join(gotDir, gotRepositoryDirRefs, gotRepositoryDirRefsTags); !pathExist(dir, true) {
-		os.Mkdir(dir, fs.ModePerm|0755)
-	}
+
 	return repo, nil
 }
 

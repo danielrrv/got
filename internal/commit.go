@@ -72,3 +72,6 @@ func (c Commit) Location() string {
 	}
 	return filepath.Join(c.Hash[:2], c.Hash[:2])
 }
+
+
+// func CreateCommit() * Commit{}

@@ -2,7 +2,8 @@ package internal
 
 import (
 	"errors"
-	"io/fs"
+	
+	// "io/fs"
 	"os"
 	"path/filepath"
 )
@@ -102,10 +103,6 @@ func BlobFromUserPath(repo *GotRepository, path string) (*Blob, error) {
 		realP = path
 	} else {
 		realP = filepath.Join(repo.GotTree, path)
-	}
-	// The path is well-formed.
-	if !fs.ValidPath(realP) {
-		return nil, ErrorPathInvalid
 	}
 	// User blob content.
 	content, err := os.ReadFile(realP)
