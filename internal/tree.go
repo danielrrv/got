@@ -64,7 +64,6 @@ func (t TreeItem) Location() string {
 	return t.Path
 }
 
-
 func (o *OFS) String() {
 	fmt.Printf("%s,%s", o.path, string(o.mode))
 }
@@ -80,8 +79,8 @@ func indexOf(offs []OFS, key string) int {
 }
 
 // Traverse the tree graph.
-func TraverseTree(repo *GotRepository, t TreeItem, visitBlob func(TreeItem), visitTree func(TreeItem)) {
-	visitTree(t)
+func (t * TreeItem)TraverseTree(repo *GotRepository, visitBlob func(TreeItem), visitTree func(TreeItem)) {
+	if bytes.Equal(t.Mode, TreeMode){ visitTree(*t) }
 	for _, item := range t.Children {
 		if bytes.Equal(item.Mode, BlobMode) {
 			visitBlob(item)
@@ -89,7 +88,7 @@ func TraverseTree(repo *GotRepository, t TreeItem, visitBlob func(TreeItem), vis
 		if bytes.Equal(item.Mode, TreeMode) {
 			visitTree(item)
 			for _, child := range item.Children {
-				TraverseTree(repo, child, visitBlob, visitTree)
+				child.TraverseTree(repo, visitBlob, visitTree)
 			}
 		}
 	}
@@ -101,7 +100,7 @@ func FromMapToTree(repo *GotRepository, m map[string][]OFS, parent string) TreeI
 	re := make([]TreeItem, 0)
 	for _, item := range items {
 		if bytes.Equal(item.mode, BlobMode) {
-			hash, err := CreatePossibleObjectFromData(repo, item, blobHeaderName)
+			hash, err := CreatePossibleObjectFromData(repo, item, BlobHeaderName)
 			if err != nil {
 				panic(err)
 			}
@@ -125,13 +124,14 @@ func FromMapToTree(repo *GotRepository, m map[string][]OFS, parent string) TreeI
 		Children: re,
 	}
 	//Create hash of the tree.
-	hash, err := CreatePossibleObjectFromData(repo, t, treeHeaderName)
+	hash, err := CreatePossibleObjectFromData(repo, t, TreeHeaderName)
 	if err != nil {
 		panic(err)
 	}
 	t.Hash = hash
 	return t
 }
+
 
 // Create map if OFS from array of files.
 func CreateTreeFromFiles(repo *GotRepository, files []string) map[string][]OFS {
@@ -140,13 +140,16 @@ func CreateTreeFromFiles(repo *GotRepository, files []string) map[string][]OFS {
 		// SPlit by file system separator. Not MS.Window tested.
 		dirs := strings.Split(wholePath, string(filepath.Separator))
 		for i := len(dirs) - 1; i > 0; i-- {
-			if isFile(filepath.Join(repo.GotTree, filepath.Join(dirs[0:i]...), dirs[i])) {
+			if ok, err := isFile(filepath.Join(repo.GotTree, filepath.Join(dirs[0:i]...), dirs[i])); ok {
+				if err != nil {
+					panic(err)
+				}
 				if indexOf(m[dirs[i-1]], dirs[i]) == -1 {
-					m[dirs[i-1]] = append(m[dirs[i-1]], OFS{path: dirs[i], mode: BlobMode})
+					m[dirs[i-1]] = append(m[dirs[i-1]], OFS{path: filepath.Join(repo.GotTree, wholePath), mode: BlobMode})
 				}
 			} else {
 				if indexOf(m[dirs[i-1]], dirs[i]) == -1 {
-					m[dirs[i-1]] = append(m[dirs[i-1]], OFS{path: dirs[i], mode: TreeMode})
+					m[dirs[i-1]] = append(m[dirs[i-1]], OFS{path: filepath.Join(repo.GotTree, filepath.Join(dirs[0:i]...)) , mode: TreeMode})
 				}
 			}
 		}
@@ -154,16 +157,17 @@ func CreateTreeFromFiles(repo *GotRepository, files []string) map[string][]OFS {
 	return m
 }
 
+
 // Determine whether or not the path is file.
-func isFile(path string) bool {
+func isFile(path string) (bool, error) {
 	fi, err := os.Stat(path)
 	if err != nil {
-		return false
+		return false, err
 	}
 	if fi.IsDir() {
-		return false
+		return false, nil
 	}
-	return true
+	return true, nil
 }
 
 // Convert TreeItem into []bytes. No recursive.
@@ -175,7 +179,7 @@ func (t TreeItem) Serialize() []byte {
 	for _, buf := range t.Children {
 		bb = append(bb, buf.Mode...)
 		bb = append(bb, byte(0x20))
-		bb = append(bb, []byte(buf.Path)...)
+		bb = append(bb, []byte(buf.Path)...) //Must be full path from got tree.
 		bb = append(bb, byte(0x00))
 		bb = append(bb, []byte(buf.Hash)...)
 	}
@@ -185,6 +189,7 @@ func (t TreeItem) Serialize() []byte {
 // Deserialize raw bytes to TreeItem struct.
 func (t TreeItem) Deserialize(d []byte) TreeItem {
 	for len(d) > 0 {
+		//WHat is this?
 		modeSep := bytes.Index(d, []byte{0x20})
 		pathTerm := bytes.Index(d, []byte{0x00})
 
@@ -198,11 +203,12 @@ func (t TreeItem) Deserialize(d []byte) TreeItem {
 			d = d[pathTerm+sha1.Size:]
 		}
 		if bytes.Equal(d[0:modeSep], TreeMode) {
+			//What is this?
 			repo, err := FindOrCreateRepo(string(d[modeSep+1 : pathTerm]))
 			if err != nil {
 				panic(err)
 			}
-			content, err := ReadObject(repo, treeHeaderName, string(d[pathTerm+1:sha1.Size]))
+			content, err := ReadObject(repo, TreeHeaderName, string(d[pathTerm+1:sha1.Size]))
 			if err != nil {
 				panic(err)
 			}
@@ -211,4 +217,3 @@ func (t TreeItem) Deserialize(d []byte) TreeItem {
 	}
 	return t
 }
-

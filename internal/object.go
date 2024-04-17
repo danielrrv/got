@@ -4,13 +4,8 @@ import (
 	"bytes"
 	"compress/zlib"
 	"crypto/sha1"
-
-
-	// "encoding/binary"
 	"encoding/hex"
 	"errors"
-
-
 	"io"
 	"io/fs"
 	"os"
@@ -23,9 +18,9 @@ const (
 	tagName          = "object"
 	newLine          = '\n'
 	tab              = '\t'
-	commitHeaderName = string("commit")
-	treeHeaderName   = string("tree")
-	blobHeaderName   = string("blob")
+	CommitHeaderName = string("commit")
+	TreeHeaderName   = string("tree")
+	BlobHeaderName   = string("blob")
 )
 
 var (
@@ -39,8 +34,8 @@ var (
 type GotObject interface {
 	// Implementation to transform struct to bytes.
 	Serialize() []byte
-	// Implementation to get the object location on got/objects folders.
-	Location() string
+	// // Implementation to get the object location on got/objects folders.
+	// Location() string
 }
 
 type Object struct {
@@ -90,7 +85,7 @@ func ReadObject(repo *GotRepository, header string, hash string) ([]byte, error)
 	// Decompress the object.
 	var bb bytes.Buffer
 	Decompress(content, &bb)
-	if bytes.Compare(bb.Bytes()[0:len(header)], []byte(header)) > 0 {
+	if !bytes.Equal(bb.Bytes()[0:len(header)], []byte(header)){
 		return nil, ErrorIncorrectOBjectType
 	}
 	//Implementation to validate the correctness at this point.
@@ -162,7 +157,7 @@ func CreatePossibleObjectFromData(repo *GotRepository, g GotObject, header strin
 
 // [Persist] the object in disk given the data. CratePossibleObject must have generated the same hash. Use cautionsly.
 func WriteObject(repo *GotRepository, g GotObject, header string) (string, error) {
-
+	// fmt.Println("Writing a "+ header + " at "+ g.Location())
 	//1. Build the object
 	rawObj := BuildObject(header, g)
 	//2. Derive the has

@@ -44,4 +44,20 @@ func TestRepository(t *testing.T) {
 		
 		fmt.Println(path)
 	})
+
+	t.Run("got status", func(t *testing.T) {
+		tmp:= t.TempDir()
+		repo, err := internal.FindOrCreateRepo(tmp)
+		if err != nil {
+			t.Error(err)
+		} 
+		internal.Status(repo)
+		CreateFilesTesting(tmp, []string{"src"}, []TestingFile{
+			{Name: "readme.md", RelativePath: "src/readme.md", Data: []byte("some-readme")},
+			{Name: "readme.md", RelativePath: "src/cache.md", Data: []byte("some-cache")},
+			{Name: "readme.md", RelativePath: "src/base64.md", Data: []byte("some-base64")},
+		})
+		internal.Status(repo)
+	})
+
 }

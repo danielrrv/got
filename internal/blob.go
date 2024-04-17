@@ -61,7 +61,7 @@ func (b *Blob) Persist() error {
 	if len(b.FileContent) == 0 {
 		return ErrorNotDataToWrite
 	}
-	hash, err := WriteObject(b.Repo, *b, blobHeaderName)
+	hash, err := WriteObject(b.Repo, *b, BlobHeaderName)
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func ReadBlobObject(repo *GotRepository, objId string) (*Blob, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := ReadObject(repo, blobHeaderName, objId)
+	data, err := ReadObject(repo, BlobHeaderName, objId)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func BlobFromUserPath(repo *GotRepository, path string) (*Blob, error) {
 		Commit:      nil,
 	}
 	// Create  possible hash build the base object.
-	possibleHash, err := CreatePossibleObjectFromData(repo, blob, blobHeaderName)
+	possibleHash, err := CreatePossibleObjectFromData(repo, blob, BlobHeaderName)
 	if err != nil {
 		panic(err)
 	}

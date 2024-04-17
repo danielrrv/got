@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	internal "github.com/danielrrv/got/internal"
 	"os"
 )
@@ -34,6 +33,7 @@ func getOrDefault(v string, d string) string {
 	} else {
 		return v
 	}
+
 }
 
 func CommandInit(app *Application, args []string) int {
@@ -57,13 +57,10 @@ func CommandAdd(app *Application, args []string) int {
 	if err != nil {
 		app.Report(err)
 	}
-	fmt.Println(repo.Index.Entries)
+
 	repo.Index.AddOrModifyEntries(repo, args)
 	if err := repo.Index.Persist(repo); err != nil {
 		panic(err)
 	}
-	fmt.Println(repo.Index.Entries[0])
-	// // intern
 	return 0
-
 }

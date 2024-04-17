@@ -2,9 +2,12 @@ package internal
 
 import (
 	"bytes"
-	"path/filepath"
+	// "fmt"
+	// "os"
+
 	"reflect"
 	"strings"
+	// "time"
 )
 
 // "bytes"
@@ -12,7 +15,6 @@ import (
 // "strings"
 
 type Commit struct {
-	Hash        string `object:"hash"`
 	Author      string `object:"author"`
 	Committer   string `object:"committer"`
 	Tree        string `object:"tree"`
@@ -66,12 +68,26 @@ func (c Commit) Deserialize(d []byte) Commit {
 	return v.Interface().(Commit)
 }
 
-func (c Commit) Location() string {
-	if c.Hash == "" {
-		panic("hash hasn't been calculated yet.")
+
+
+func CreateCommit(repo *GotRepository, t *TreeItem) *Commit {
+	return &Commit{
+		Author: "Daniel",
+		Committer :"Taken from cnfiguration",
+		Tree: t.Hash,
+		Date: "2024-04-09",
+		Description: " First commit",
+		Parent: "some-parent",
 	}
-	return filepath.Join(c.Hash[:2], c.Hash[:2])
 }
 
 
-// func CreateCommit() * Commit{}
+func ReadCommit(repo * GotRepository, objId string) * Commit{
+	rawData, err := ReadObject(repo, CommitHeaderName, objId) 
+	if err != nil {
+		panic(err)
+	} 
+	var dummy Commit 
+	commit := dummy.Deserialize(rawData)
+	return &commit
+}

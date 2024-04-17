@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
+	// "slices"
 )
 
 const (
@@ -81,15 +83,17 @@ func FindRecursivelyFolder(path string, folder string, until int) (string, error
 
 // This must guarantee that folders exists otherwise it must create them from scratch
 //
-// Also, this is the place where the index is refreshed from disk. It doesn't exist yet, it
-// it must be created. If exists already, just refresh.
+//   - Also, this is the place where the index is refreshed from disk. It doesn't exist yet, it
+//     it must be created. If exists already, just refresh.
 //
-// To prove the repo existance, we can check the index file has data inside.
-// Find the repo if exist in the path or create new one.
+//   - To prove the repo existance, we can check the index file has data inside.
+//     Find the repo if exist in the path or create new one.
 func FindOrCreateRepo(path string) (*GotRepository, error) {
 	if !pathExist(path, true) {
+
 		return nil, ErrorPathDoesNotExist
 	}
+	fmt.Println(path)
 	// Default folder location in case not .got folder found.
 	gotDir := filepath.Join(path, gotRootRepositoryDir)
 	treeDir := path
@@ -127,6 +131,11 @@ func FindOrCreateRepo(path string) (*GotRepository, error) {
 		}
 		//Create the version's file and write in it.
 		if err := CreateOrUpdateRepoFile(repo, "version", []byte(fmt.Sprintf("version: %s", version))); err != nil {
+			panic(err)
+		}
+
+		//Create the version's file and write in it.
+		if err := CreateOrUpdateRepoFile(repo, "HEAD", []byte(fmt.Sprintf("ref: refs/heads/main"))); err != nil {
 			panic(err)
 		}
 
@@ -172,4 +181,89 @@ func pathExist(path string, mustBeDir bool) bool {
 		return !errors.Is(err, os.ErrNotExist) && fi.IsDir()
 	}
 	return true
+}
+
+
+
+// List recursively the files in the worktree.
+func listWorkTree(rootDir string) []fs.DirEntry {
+	entries := make([]fs.DirEntry, 0)
+	dirs, err := os.ReadDir(rootDir)
+	// Implementation to discard .got folder.
+	dirs = slices.DeleteFunc(dirs, func(e fs.DirEntry) bool {
+		return e.Name() == ".got" && e.IsDir()
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	for _, dir := range dirs {
+		if dir.IsDir() {
+			entries = append(entries, listWorkTree(filepath.Join(rootDir, dir.Name()))...)
+		} else {
+			entries = append(entries, dir)
+		}
+	}
+	return entries
+}
+
+func Status(repo *GotRepository) {
+	worktree := listWorkTree(repo.GotTree)
+
+	trackedFiles := make([]string, 0)
+	untrackedFiles := make([]string, 0)
+
+	for _, node := range worktree {
+		idx := slices.IndexFunc(repo.Index.Entries, func(entry IndexEntry) bool {
+			return node.Name() == entry.PathName
+		})
+		if idx >= 0 {
+			trackedFiles = append(trackedFiles, repo.Index.Entries[idx].PathName)
+		} else {
+			untrackedFiles = append(untrackedFiles, node.Name())
+		}
+	}
+	if len(trackedFiles) == 0 {
+		fmt.Println("Nothing tracked yet.")
+	}
+	if len(trackedFiles) == 0 && len(untrackedFiles) == 0 {
+		fmt.Println("Nothing in the worktree.")
+	}
+	fmt.Println(untrackedFiles)
+	// refData, err := os.ReadFile(filepath.Join(repo.GotDir, "HEAD"))
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// ref := ReferenceFromHEAD(repo, refData)
+	// if ref.Invalid {
+	// 	fmt.Println("HEAD reference is invalid. Whether there no commit or the file is incorrect.")
+	// 	//nothing to compare with.
+	// } else {
+	// 	var headCommit string
+	// 	if ref.IsDirect {
+	// 		headCommit = ref.Reference
+	// 	}
+	// 	commit := ReadCommit(repo, headCommit)
+	// 	fmt.Println(commit)
+	// }
+
+	// Given the tracked files,
+	// 1. Compare; head treee
+	// for _, tracked := range trackedFiles{
+	// headCommit := ReadObject()
+	// slices.IndexFunc(repo.Index.Cache, func(c CacheEntry) bool {
+	// 	if tracked == c.PathName{
+
+	// 	}
+	// })
+	// }
+
+	//23) blob from tree vs blob from cache vs actual blob.
+	// 1. List all files
+	// 2. It'll create 2 groups;1) All tracked vs all Non-tracked.
+	// 2.1. The tracked files may have 3 versions;
+	//  - The blob already persisted in DB from HEAD ref.
+	//  - The cached blob from previous git add where cached is different from persisted.
+	//  - The user file changed recently (because, cached != file)
+	// Once git added. Cache file needs to be updated.
 }

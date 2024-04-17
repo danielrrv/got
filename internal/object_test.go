@@ -2,6 +2,7 @@ package internal_test
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -90,6 +91,7 @@ func TestSerialize(t *testing.T) {
 		if err != nil {
 			t.Errorf("%v", err.Error())
 		}
+		fmt.Println(commit2)
 		if commit2.Date != commit.Date {
 			t.Errorf("Expected to commit2.Date equals to commit.Date")
 		}
