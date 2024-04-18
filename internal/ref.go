@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-
-
 )
 
 var (
@@ -29,7 +27,15 @@ func (r *Ref) WriteRef(repo *GotRepository) error {
 	return CreateOrUpdateRepoFile(repo, "HEAD", []byte(fmt.Sprintf(r.Reference)))
 }
 
-func ReferenceFromHEAD(repo *GotRepository, referenceData []byte) *Ref {
+func (repo *GotRepository) GetHEADReference() *Ref {
+	refData, err := os.ReadFile(filepath.Join(repo.GotDir, "HEAD"))
+	if err != nil {
+		panic(err)
+	}
+	return parseReference(repo, refData)
+}
+
+func parseReference(repo *GotRepository, referenceData []byte) *Ref {
 	// Implementation to determine the ref is indirect. So validate the existance of it. Otherwise is first commit.
 	if matchGroup := refRegex.FindAllStringSubmatch(string(referenceData), -1); matchGroup != nil {
 		if len(matchGroup[0]) >= 3 {
@@ -44,7 +50,7 @@ func ReferenceFromHEAD(repo *GotRepository, referenceData []byte) *Ref {
 				}
 			}
 			//Find the refs/heads/{ref-branch} has content.
-			return ReferenceFromHEAD(repo, content)
+			return parseReference(repo, content)
 		}
 	} else {
 		if len(referenceData) == sha1.Size*2 {
@@ -64,10 +70,10 @@ func ReferenceFromHEAD(repo *GotRepository, referenceData []byte) *Ref {
 				IsDirect:  true,
 				Reference: string(referenceData),
 			}
-		}else{
+		} else {
 			return &Ref{
-				Invalid: true,
-				IsDirect: true,
+				Invalid:   true,
+				IsDirect:  true,
 				Reference: string(referenceData),
 			}
 		}

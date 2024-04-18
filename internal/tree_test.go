@@ -6,7 +6,7 @@ import (
 	// "os"
 	// "path/filepath"
 	"fmt"
-	"os"
+	// "os"
 	"path/filepath"
 	"testing"
 
@@ -26,43 +26,26 @@ func TestTree(t *testing.T) {
 	})
 
 	t.Run("Serialize/deserialize tree", func(t *testing.T) {
-		tmp := "/home/daniel/got/tests"
+		tmp := t.TempDir()
 		
-		err := os.MkdirAll(tmp, 0744)
-		if err != nil {panic(err)}
+		// err := os.MkdirAll(tmp, 0744)
+		// if err != nil {panic(err)}
 
 		repo, err := internal.FindOrCreateRepo(tmp)
 		if err != nil {
 			t.Errorf("No repo found.")
 		}
+		CreateFilesTesting(tmp, []string{"src","src/a", "src/a/c", "src/a/b"}, []TestingFile{
+			{Name: "co.txt", RelativePath: "src/a/co.txt", Data: []byte("some-readme")},
+			{Name: "cx.txt", RelativePath: "src/a/c/cx.txt", Data: []byte("some-cache")},
+			{Name: "mx.txt", RelativePath: "src/a/b/mx.txt", Data: []byte("some-base64")},
+			{Name: "jx.txt", RelativePath: "src/a/b/jx.txt", Data: []byte("some-other")},
+		})
+		
 
-		files := []string{filepath.Join(tmp, "src/a/co.txt"), filepath.Join(tmp, "src/a/c/cx.txt"), filepath.Join(tmp, "src/a/b/mx.txt"), filepath.Join(tmp, "src/a/b/jx.txt")}
-
-		err = os.MkdirAll(filepath.Join(tmp, "src"), 0744)
-		if err != nil {panic(err)}
-		err = os.MkdirAll(filepath.Join(tmp, "src/a/c"), 0744)
-		if err != nil {panic(err)}
-		err = os.MkdirAll(filepath.Join(tmp, "src/a/b"), 0744)
-		if err != nil {panic(err)}
-
-
-		for _, file := range files {
-			fd, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE, 0755)
-			if err != nil {
-				panic(err)
-			}
-
-			if _, err := fd.Write([]byte(file)); err != nil {
-				panic(err)
-			}
-			fd.Close()
-		}
-
-		m := internal.CreateTreeFromFiles(repo, files)
-		fmt.Println(m)
-		t.FailNow()
+		m := internal.CreateTreeFromFiles(repo, []string{"src/a/co.txt", "src/a/c/cx.txt", "src/a/b/mx.txt", "src/a/b/jx.txt"})
 		tree := internal.FromMapToTree(repo, m, "src")
-		tree.TraverseTree(repo,
+		tree.TraverseTree(
 			func(ti internal.TreeItem) {
 				//	Here we have to go index and capture the cache of the stage area.
 				blob, err := internal.BlobFromUserPath(repo, ti.Path)

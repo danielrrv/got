@@ -25,14 +25,11 @@ type TestingFile struct{
 
 
 func CreateFilesTesting(projectTemporalFolder string, folders []string, files []TestingFile) {
-	// fileA := filepath.Join(projectTemporalFolder, "src", "readme.md")
-	// fileB := filepath.Join(projectTemporalFolder, "src", "cache.rs")
-	// fileC := filepath.Join(projectTemporalFolder, "src", "base64.c")
-	// files := []string{fileA, fileB, fileC}
+
 	for _, dir := range folders {
 		err := os.MkdirAll(filepath.Join(projectTemporalFolder, dir), 0744)
 		if err != nil {
-
+			panic(err)
 		}
 	}
 

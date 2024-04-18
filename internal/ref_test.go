@@ -16,12 +16,8 @@ func TestReference(t *testing.T) {
 		if err != nil {
 			panic(err)
 		}
-		content, err := os.ReadFile(filepath.Join(repo.GotDir, "HEAD"))
 		
-		if err != nil {
-			t.Errorf("Expected to read the file, %v", err.Error())
-		}
-		ref := internal.ReferenceFromHEAD(repo, content)
+		ref :=repo.GetHEADReference()
 		fmt.Println(ref)
 	})
 	t.Run("ReferenceFromHEAD when is direct hash ref", func(t *testing.T) {
@@ -36,12 +32,8 @@ func TestReference(t *testing.T) {
 		if err != nil {
 			panic(err)
 		}
-		content, err := os.ReadFile(filepath.Join(repo.GotDir, "HEAD"))
 		
-		if err != nil {
-			t.Errorf("Expected to read the file, %v", err.Error())
-		}
-		ref2 :=internal.ReferenceFromHEAD(repo, content)
+		ref2 :=repo.GetHEADReference()
 		if !ref2.Invalid {
 			t.Errorf("Expected to be invalid")
 		}
@@ -54,12 +46,8 @@ func TestReference(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected to create referered object, %v", err.Error())
 		}
-		content, err = os.ReadFile(filepath.Join(repo.GotDir, "HEAD"))
-		
-		if err != nil {
-			t.Errorf("Expected to read the file, %v", err.Error())
-		}
-		ref3 :=internal.ReferenceFromHEAD(repo, content)
+	
+		ref3 :=repo.GetHEADReference()
 		if ref3.Invalid {
 			t.Errorf("Expected to be valid")
 		}
@@ -78,14 +66,7 @@ func TestReference(t *testing.T) {
 		if err != nil {
 			panic(err)
 		}
-
-		content, err := os.ReadFile(filepath.Join(repo.GotDir, "HEAD"))
-		
-		if err != nil {
-			t.Errorf("Expected to read the file, %v", err.Error())
-		}
-
-		ref2 := internal.ReferenceFromHEAD(repo, content)
+		ref2 := repo.GetHEADReference()
 		if !ref2.Invalid {
 			t.Errorf("Expected to be invalid")
 		}
@@ -109,7 +90,7 @@ func TestReference(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected to read the file, %v", err.Error())
 		}
-		ref3 := internal.ReferenceFromHEAD(repo, content)
+		ref3 := repo.GetHEADReference()
 
 		fmt.Println(ref3)
 		if ref3.Reference != someHash {

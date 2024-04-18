@@ -183,87 +183,131 @@ func pathExist(path string, mustBeDir bool) bool {
 	return true
 }
 
-
+type DirEntry struct {
+	RelativePath string
+}
 
 // List recursively the files in the worktree.
-func listWorkTree(rootDir string) []fs.DirEntry {
-	entries := make([]fs.DirEntry, 0)
+func listWorkTree(rootDir string) []string {
+	entries := make([]string, 0)
 	dirs, err := os.ReadDir(rootDir)
+	if err != nil {
+		panic(err)
+	}
 	// Implementation to discard .got folder.
 	dirs = slices.DeleteFunc(dirs, func(e fs.DirEntry) bool {
 		return e.Name() == ".got" && e.IsDir()
 	})
-	if err != nil {
-		panic(err)
-	}
-
 	for _, dir := range dirs {
 		if dir.IsDir() {
 			entries = append(entries, listWorkTree(filepath.Join(rootDir, dir.Name()))...)
 		} else {
-			entries = append(entries, dir)
+			entries = append(entries, filepath.Join(rootDir, dir.Name()))
 		}
 	}
 	return entries
 }
 
-func Status(repo *GotRepository) {
-	worktree := listWorkTree(repo.GotTree)
+func relativize(repo *GotRepository, path string) string {
+	rel, err := filepath.Rel(repo.GotTree, path)
+	if err != nil {
+		panic(err)
+	}
+	return rel
+}
 
+func relativizeMultiPaths(repo *GotRepository, paths []string) []string {
+	rels := make([]string, 0)
+	for _, path := range paths {
+		rels = append(rels, relativize(repo, path))
+	}
+	return rels
+}
+
+// Candiate to pointer Got Reposu
+func Status(repo *GotRepository) {
+	//read all the files in the worktree.
+	worktree := listWorkTree(repo.GotTree)
+	//Container for tracked files(already either in index or in DB)
 	trackedFiles := make([]string, 0)
+	// Container for untracked files.
 	untrackedFiles := make([]string, 0)
 
 	for _, node := range worktree {
-		idx := slices.IndexFunc(repo.Index.Entries, func(entry IndexEntry) bool {
-			return node.Name() == entry.PathName
-		})
-		if idx >= 0 {
-			trackedFiles = append(trackedFiles, repo.Index.Entries[idx].PathName)
+		// - what it does: Find out whether the node/file is already in index.
+		// - Here we don't know if the blob is index only or it has been persisted in DB already.
+		if idxAtIndex := slices.IndexFunc(repo.Index.Entries, func(entry IndexEntry) bool {
+			return relativize(repo, node) == entry.PathName
+		}); idxAtIndex >= 0 {
+			trackedFiles = append(trackedFiles, repo.Index.Entries[idxAtIndex].PathName)
 		} else {
-			untrackedFiles = append(untrackedFiles, node.Name())
+			untrackedFiles = append(untrackedFiles, node)
 		}
 	}
-	if len(trackedFiles) == 0 {
-		fmt.Println("Nothing tracked yet.")
+	
+	var headCommit *Commit
+	// Get the HEAD reference to compare with its tree.
+	ref := repo.GetHEADReference()
+
+	if ref.Invalid {
+		fmt.Println("HEAD reference is invalid. Whether there no commit or the file is incorrect.")
+		headCommit = nil
+	} else {
+		headCommit = ReadCommit(repo, ref.Reference)
 	}
-	if len(trackedFiles) == 0 && len(untrackedFiles) == 0 {
-		fmt.Println("Nothing in the worktree.")
+	// What it means: There is already a worktree and there are commit already on the HEAD.
+	if headCommit != nil {
+		fmt.Println("There already a tree. So there might be a blon from tree in the tree.")
+		// Based on the HEAD commit, obtain the tree associated.
+		rawTree, err := ReadObject(repo, TreeHeaderName, headCommit.Tree)
+		if err != nil {
+			panic(err)
+		}
+		var dummy TreeItem
+		tree := dummy.Deserialize(rawTree)
+		// What it does: recursively make all tree blob flatten into an array of strings.
+		pathsInTree := tree.FlatItems()
+		
+		for _, trackFile := range trackedFiles {
+			// - Find out if the tracked file is persisted on the tree of the HEAD.
+			// - if is persisted compare its hash with latest file state hash of the user.
+			//   -  if the hashes are different, files are different and user has modified the file.
+			//     - if blob is in cache means that the user has already added the file to stage area.
+			//     - if cache hash is different from latest file state hash of the user,then user has modified the file since the 
+			//        the last time the files has been added to stage area.
+			if idxPersisted := slices.IndexFunc(pathsInTree, func(ti TreeItem) bool {
+				return relativize(repo, ti.Path) == trackFile
+			}); idxPersisted >= 0 {
+				// Generate an in-memory object from latest user tracked file.
+				hash, err := CreatePossibleObjectFromData(repo, Blob{Path: filepath.Join(repo.GotTree, trackFile)}, BlobHeaderName)
+				if err != nil {
+					panic(err)
+				}
+				// Validation #1: tree blob different from user blob. File changed.
+				if hash != pathsInTree[idxPersisted].Hash {
+					// Validation #2: stage area blob different from user blob. File has changed.
+					if idxAtCache := slices.IndexFunc(repo.Index.Cache, func(cache CacheEntry) bool {
+						return trackFile == cache.PathName
+					}); idxAtCache >= 0 {
+						if repo.Index.Cache[idxAtCache].Hash != hash {
+							// File has changed from previous state of the stage area.
+							fmt.Println("cache file different from user's recently changed file lines.")
+						} else {
+							// Cache and user file are the same. File recently added but not modified.
+						}
+					} else {
+						//File no added after being modified
+					}
+
+				} else {
+					// Tracked file is not modified.
+				}
+			} else {
+				//File tracked for first time because is not in tree.
+			}
+		}
+	} else {
+		// THis is the first commit. Only matter validation of the cache vs user files.
 	}
-	fmt.Println(untrackedFiles)
-	// refData, err := os.ReadFile(filepath.Join(repo.GotDir, "HEAD"))
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// ref := ReferenceFromHEAD(repo, refData)
-	// if ref.Invalid {
-	// 	fmt.Println("HEAD reference is invalid. Whether there no commit or the file is incorrect.")
-	// 	//nothing to compare with.
-	// } else {
-	// 	var headCommit string
-	// 	if ref.IsDirect {
-	// 		headCommit = ref.Reference
-	// 	}
-	// 	commit := ReadCommit(repo, headCommit)
-	// 	fmt.Println(commit)
-	// }
-
-	// Given the tracked files,
-	// 1. Compare; head treee
-	// for _, tracked := range trackedFiles{
-	// headCommit := ReadObject()
-	// slices.IndexFunc(repo.Index.Cache, func(c CacheEntry) bool {
-	// 	if tracked == c.PathName{
-
-	// 	}
-	// })
-	// }
-
-	//23) blob from tree vs blob from cache vs actual blob.
-	// 1. List all files
-	// 2. It'll create 2 groups;1) All tracked vs all Non-tracked.
-	// 2.1. The tracked files may have 3 versions;
-	//  - The blob already persisted in DB from HEAD ref.
-	//  - The cached blob from previous git add where cached is different from persisted.
-	//  - The user file changed recently (because, cached != file)
-	// Once git added. Cache file needs to be updated.
+	fmt.Println(relativizeMultiPaths(repo, untrackedFiles), trackedFiles)
 }

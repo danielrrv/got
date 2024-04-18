@@ -1,9 +1,6 @@
 package internal_test
 
 import (
-	// "fmt"
-	"fmt"
-
 	"testing"
 
 	internal "github.com/danielrrv/got/internal"
@@ -31,11 +28,10 @@ func TestCommit(t *testing.T) {
 		// We have to deserialize the tree and validate the new blobs are different from the tree already.
 		//To compare 2 blob in the tree the have to have the same absolute path.
 		m := internal.CreateTreeFromFiles(repo, []string{"src/readme.md", "src/cache.rs", "src/base64.c"})
-		fmt.Println(m)
+	
 		tree := internal.FromMapToTree(repo, m, "src")
 
-		tree.TraverseTree(repo,
-			func(ti internal.TreeItem) {
+		tree.TraverseTree(func(ti internal.TreeItem) {
 				//	Here we have to go index and capture the cache of the stage area.
 				blob, err := internal.BlobFromUserPath(repo, ti.Path)
 				if err != nil {
@@ -53,7 +49,6 @@ func TestCommit(t *testing.T) {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(hash)
 		deserializeCommit := internal.ReadCommit(repo, hash)
 		if deserializeCommit.Tree != tree.Hash {
 			t.Errorf("Expected to tree hashes be equal")

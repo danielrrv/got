@@ -79,8 +79,10 @@ func indexOf(offs []OFS, key string) int {
 }
 
 // Traverse the tree graph.
-func (t * TreeItem)TraverseTree(repo *GotRepository, visitBlob func(TreeItem), visitTree func(TreeItem)) {
-	if bytes.Equal(t.Mode, TreeMode){ visitTree(*t) }
+func (t *TreeItem) TraverseTree(visitBlob func(TreeItem), visitTree func(TreeItem)) {
+	if bytes.Equal(t.Mode, TreeMode) {
+		visitTree(*t)
+	}
 	for _, item := range t.Children {
 		if bytes.Equal(item.Mode, BlobMode) {
 			visitBlob(item)
@@ -88,10 +90,19 @@ func (t * TreeItem)TraverseTree(repo *GotRepository, visitBlob func(TreeItem), v
 		if bytes.Equal(item.Mode, TreeMode) {
 			visitTree(item)
 			for _, child := range item.Children {
-				child.TraverseTree(repo, visitBlob, visitTree)
+				child.TraverseTree(visitBlob, visitTree)
 			}
 		}
 	}
+}
+
+// Flatten the tree to linear structure of blobs.
+func (t *TreeItem) FlatItems() []TreeItem {
+	ret := make([]TreeItem, 0)
+	t.TraverseTree(func(ti TreeItem) {
+		ret = append(ret, ti)
+	}, func(ti TreeItem) {})
+	return ret
 }
 
 // Convert map of OFS into TreeItem graph. Intermediate converter.
@@ -99,7 +110,9 @@ func FromMapToTree(repo *GotRepository, m map[string][]OFS, parent string) TreeI
 	items := m[parent]
 	re := make([]TreeItem, 0)
 	for _, item := range items {
+		// Branch #1: The item is blob. Just create the in-memory object and append.
 		if bytes.Equal(item.mode, BlobMode) {
+			//possible hash of a OFS blob must be equal to the actual blob.
 			hash, err := CreatePossibleObjectFromData(repo, item, BlobHeaderName)
 			if err != nil {
 				panic(err)
@@ -110,20 +123,21 @@ func FromMapToTree(repo *GotRepository, m map[string][]OFS, parent string) TreeI
 				Mode:     BlobMode,
 				Children: nil,
 			})
+			continue
 		}
-		// If item is tree, them keep traversing.
+		// Branch #2: the item is tree. Keep drill down recursively the graph.
 		if bytes.Equal(item.mode, TreeMode) {
 			re = append(re, FromMapToTree(repo, m, item.path))
 		}
 	}
-
+	// Based parent tree. 
 	t := TreeItem{
 		Path:     parent,
 		Mode:     TreeMode,
 		Hash:     "",
 		Children: re,
 	}
-	//Create hash of the tree.
+	//Create in-memory object of the tree.
 	hash, err := CreatePossibleObjectFromData(repo, t, TreeHeaderName)
 	if err != nil {
 		panic(err)
@@ -132,12 +146,11 @@ func FromMapToTree(repo *GotRepository, m map[string][]OFS, parent string) TreeI
 	return t
 }
 
-
-// Create map if OFS from array of files.
+// Create map of OFS from array of files.
 func CreateTreeFromFiles(repo *GotRepository, files []string) map[string][]OFS {
 	m := make(map[string][]OFS)
 	for _, wholePath := range files {
-		// SPlit by file system separator. Not MS.Window tested.
+		// Split by file system separator. Not MS.Window tested.
 		dirs := strings.Split(wholePath, string(filepath.Separator))
 		for i := len(dirs) - 1; i > 0; i-- {
 			if ok, err := isFile(filepath.Join(repo.GotTree, filepath.Join(dirs[0:i]...), dirs[i])); ok {
@@ -149,14 +162,13 @@ func CreateTreeFromFiles(repo *GotRepository, files []string) map[string][]OFS {
 				}
 			} else {
 				if indexOf(m[dirs[i-1]], dirs[i]) == -1 {
-					m[dirs[i-1]] = append(m[dirs[i-1]], OFS{path: filepath.Join(repo.GotTree, filepath.Join(dirs[0:i]...)) , mode: TreeMode})
+					m[dirs[i-1]] = append(m[dirs[i-1]], OFS{path: filepath.Join(repo.GotTree, filepath.Join(dirs[0:i]...)), mode: TreeMode})
 				}
 			}
 		}
 	}
 	return m
 }
-
 
 // Determine whether or not the path is file.
 func isFile(path string) (bool, error) {
@@ -173,46 +185,64 @@ func isFile(path string) (bool, error) {
 // Convert TreeItem into []bytes. No recursive.
 func (t TreeItem) Serialize() []byte {
 	bb := make([]byte, 0)
+	// What it does: Sort the path so that the hash of the tree with the same item but different order give the same hash.
 	slices.SortFunc(t.Children, func(a, b TreeItem) int {
 		return cmp.Compare(a.Path, b.Path)
 	})
+	// [mode of 4 bytes]|[space with 0x20]|[path no limit]|[terminator 0x00]|[sha1 of 20 bytes]
 	for _, buf := range t.Children {
 		bb = append(bb, buf.Mode...)
 		bb = append(bb, byte(0x20))
 		bb = append(bb, []byte(buf.Path)...) //Must be full path from got tree.
 		bb = append(bb, byte(0x00))
-		bb = append(bb, []byte(buf.Hash)...)
+		bb = append(bb, []byte(Hex2bytes(buf.Hash))...)
 	}
 	return bb
 }
 
 // Deserialize raw bytes to TreeItem struct.
 func (t TreeItem) Deserialize(d []byte) TreeItem {
-	for len(d) > 0 {
-		//WHat is this?
-		modeSep := bytes.Index(d, []byte{0x20})
-		pathTerm := bytes.Index(d, []byte{0x00})
 
+	for len(d) > 0 {
+		// The Mode separator 0x20.
+		modeSep := bytes.Index(d, []byte{0x20})
+		// The path terminator 0x00
+		pathTerm := bytes.Index(d, []byte{0x00})
+		//Implementation to deserialize a blob.
 		if bytes.Equal(d[0:modeSep], BlobMode) {
 			t.Children = append(t.Children, TreeItem{
-				Mode:     d[0:modeSep],
-				Path:     string(d[modeSep+1 : pathTerm]),
-				Hash:     string(d[pathTerm+1 : sha1.Size]),
+				//Mode[0, 0x20]
+				Mode: d[0:modeSep],
+				//Path[0x20 + 1, 0x00]
+				Path: string(d[modeSep+1 : pathTerm]),
+				//Hash[0x00, 0x00  + sha1.Size(20 bytes)]
+				Hash:     string(Bytes2hex(d[pathTerm+1 : sha1.Size+pathTerm+1])),
 				Children: nil,
 			})
-			d = d[pathTerm+sha1.Size:]
+			// Discard consumed bytes pathTermIndex + 20bytes(sha1) + 1(The skipped 0x00)
+			d = d[pathTerm+sha1.Size+1:]
+			//Implementation to skip going through tree when already consumed a treeItem.
+			continue
 		}
+		// Implementation to deserialize a tree.
 		if bytes.Equal(d[0:modeSep], TreeMode) {
-			//What is this?
+			// Find the a possible repository.
+			//TODO: Find a way to get the real repository.
 			repo, err := FindOrCreateRepo(string(d[modeSep+1 : pathTerm]))
 			if err != nil {
 				panic(err)
 			}
-			content, err := ReadObject(repo, TreeHeaderName, string(d[pathTerm+1:sha1.Size]))
+			// Read the tree from DB based on the hash of it.
+			content, err := ReadObject(repo, TreeHeaderName, string(Bytes2hex(d[pathTerm+1:sha1.Size+pathTerm+1])))
 			if err != nil {
 				panic(err)
 			}
-			t.Children = append(t.Children, t.Deserialize(content))
+			// Append the children of this if exist.
+			if len(content) > 0 {
+				t.Children = append(t.Children, t.Deserialize(content))
+			}
+			// Discard consumed bytes pathTermIndex + 20bytes(sha1) + 1(The skipped 0x00)
+			d = d[pathTerm+1+sha1.Size:]
 		}
 	}
 	return t

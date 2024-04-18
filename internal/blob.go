@@ -2,7 +2,7 @@ package internal
 
 import (
 	"errors"
-	
+
 	// "io/fs"
 	"os"
 	"path/filepath"
@@ -54,7 +54,6 @@ func (b Blob) Location() string {
 	}
 	return filepath.Join(b.Hash[:2], b.Hash[2:])
 }
-
 
 // Persist on this the blob.
 func (b *Blob) Persist() error {
@@ -125,5 +124,3 @@ func BlobFromUserPath(repo *GotRepository, path string) (*Blob, error) {
 	blob.Hash = possibleHash
 	return &blob, nil
 }
-
-

@@ -120,14 +120,14 @@ func NewIndex() *Index {
 	}
 }
 
-func hex2bytes(s string) []byte{
+func Hex2bytes(s string) []byte{
 	b, err := hex.DecodeString(s)
 	if err !=  nil {
 		panic(err)
 	} 
 	return b
 }
-func bytes2hex(d []byte) string{
+func Bytes2hex(d []byte) string{
 	return hex.EncodeToString(d)
 }
 
@@ -140,14 +140,14 @@ func (i *Index) SerializeIndex() []byte {
 	for _, entry := range i.Entries {
 		nameLength := Bit12(len(entry.PathName))
 		packet.Set(entry.Ctime_s.Bytes(), entry.Mtime_s.Bytes())
-		packet.Set(entry.FileSize.Bytes(), hex2bytes(entry.Hash), nameLength.Bytes(), []byte(entry.PathName))
+		packet.Set(entry.FileSize.Bytes(), Hex2bytes(entry.Hash), nameLength.Bytes(), []byte(entry.PathName))
 		packet.Set([]byte{0x00})
 	}
 	for _, cacheEntry := range i.Cache {
 		fileSizeCompressed := Bit12(len(cacheEntry.CompressedFileContent))
 		internalPacket := AllocatePacket(0)
 		internalPacket.Set([]byte{0x13})
-		internalPacket.Set([]byte(cacheEntry.PathName), []byte{0x20}, hex2bytes(cacheEntry.Hash), fileSizeCompressed.Bytes(), cacheEntry.CompressedFileContent)
+		internalPacket.Set([]byte(cacheEntry.PathName), []byte{0x20}, Hex2bytes(cacheEntry.Hash), fileSizeCompressed.Bytes(), cacheEntry.CompressedFileContent)
 		internalPacket.Set([]byte{0x00})
 		// fmt.Println("Internal packet=",internalPacket.buff)
 		packet.Set(internalPacket.buff)
@@ -191,7 +191,7 @@ func (index *Index) DeserializeIndex(data []byte) {
 			Ctime_s:  Ctime_s,
 			Mtime_s:  Mtime_s,
 			FileSize: FileSize,
-			Hash:     bytes2hex(Hash),
+			Hash:     Bytes2hex(Hash),
 			PathName: PathName,
 		})
 		sizeOfEntry = sizeOfEntry - 1
