@@ -2,17 +2,14 @@ package internal
 
 import (
 	"bytes"
-	// "fmt"
-	// "os"
-
+	"time"
 	"reflect"
 	"strings"
-	// "time"
 )
 
-// "bytes"
-// "reflect"
-// "strings"
+const (
+	tagName = "object"
+)
 
 type Commit struct {
 	Author      string `object:"author"`
@@ -51,7 +48,6 @@ func (c Commit) Deserialize(d []byte) Commit {
 
 	lines := strings.Split(string(d), string(newLine))
 	for _, line := range lines {
-
 		elements := strings.Split(line, string(tab))
 		if len(elements) < 2 {
 			panic(ErrorParsingObject)
@@ -68,26 +64,23 @@ func (c Commit) Deserialize(d []byte) Commit {
 	return v.Interface().(Commit)
 }
 
-
-
-func CreateCommit(repo *GotRepository, t *TreeItem) *Commit {
+func CreateCommit(repo *GotRepository, t *TreeItem, message string) *Commit {
 	return &Commit{
-		Author: "Daniel",
-		Committer :"Taken from cnfiguration",
-		Tree: t.Hash,
-		Date: "2024-04-09",
-		Description: " First commit",
-		Parent: "some-parent",
+		Author:      "Daniel",
+		Committer:   "Taken from cnfiguration",
+		Tree:        t.Hash,
+		Date:        time.Now().Format(time.DateTime),
+		Description: message,
+		Parent:      "some-parent",
 	}
 }
 
-
-func ReadCommit(repo * GotRepository, objId string) * Commit{
-	rawData, err := ReadObject(repo, CommitHeaderName, objId) 
+func ReadCommit(repo *GotRepository, objId string) *Commit {
+	rawData, err := ReadObject(repo, CommitHeaderName, objId)
 	if err != nil {
 		panic(err)
-	} 
-	var dummy Commit 
+	}
+	var dummy Commit
 	commit := dummy.Deserialize(rawData)
 	return &commit
 }

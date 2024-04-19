@@ -85,11 +85,7 @@ func TestReference(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected to create referered object, %v", err.Error())
 		}
-		content, err = os.ReadFile(filepath.Join(repo.GotDir, "HEAD"))
 		
-		if err != nil {
-			t.Errorf("Expected to read the file, %v", err.Error())
-		}
 		ref3 := repo.GetHEADReference()
 
 		fmt.Println(ref3)

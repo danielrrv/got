@@ -8,6 +8,7 @@ import (
 const (
 	initName = "init"
 	addName  = "add"
+	statusName ="status"
 )
 
 var (
@@ -23,6 +24,7 @@ func Execute() int {
 	//commands.
 	application.AddCommand(initName, initArguments, CommandInit)
 	application.AddCommand(addName, nil, CommandAdd)
+	application.AddCommand(statusName, nil, CommandStatus)
 
 	return application.Run()
 }
@@ -62,5 +64,14 @@ func CommandAdd(app *Application, args []string) int {
 	if err := repo.Index.Persist(repo); err != nil {
 		panic(err)
 	}
+	return 0
+}
+
+func CommandStatus(app *Application, args []string) int{
+	repo, err := internal.FindOrCreateRepo(app.pwd)
+	if err != nil {
+		app.Report(err)
+	}
+	repo.Status()
 	return 0
 }

@@ -31,7 +31,6 @@ var (
 	VersionRegex = regexp.MustCompile("^version")
 )
 
-type GotConfig struct{}
 
 // https://github.com/atom/git-utils/blob/master/src/repository.h
 type GotRepository struct {
@@ -43,6 +42,15 @@ type GotRepository struct {
 	GotDir string
 	// Temporary database.
 	Index *Index
+}
+
+var BaseRepoConfig  = GotConfig{
+	Bare: false,
+	User: UserConfig{
+		Name: "Arnulfo Telaentierra",
+		Email: "dejemonosdevainas@email.com",
+	},
+	Branch: "master",
 }
 
 // Create a file inside of the repo dir(.got)
@@ -225,7 +233,7 @@ func relativizeMultiPaths(repo *GotRepository, paths []string) []string {
 }
 
 // Candiate to pointer Got Reposu
-func Status(repo *GotRepository) {
+func (repo *GotRepository) Status() {
 	//read all the files in the worktree.
 	worktree := listWorkTree(repo.GotTree)
 	//Container for tracked files(already either in index or in DB)

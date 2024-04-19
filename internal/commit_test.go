@@ -44,8 +44,8 @@ func TestCommit(t *testing.T) {
 				internal.WriteObject(repo, ti, internal.TreeHeaderName)
 			},
 		)
-		commit := internal.CreateCommit(repo, &tree)
-		hash, err := internal.WriteObject(repo, *commit, "commit")
+		commit := internal.CreateCommit(repo, &tree, "some-message")
+		hash, err := internal.WriteObject(repo, *commit, internal.CommitHeaderName)
 		if err != nil {
 			panic(err)
 		}

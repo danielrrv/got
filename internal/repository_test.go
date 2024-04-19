@@ -50,13 +50,13 @@ func TestRepository(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		internal.Status(repo)
+		repo.Status()
 		CreateFilesTesting(tmp, []string{"src"}, []TestingFile{
 			{Name: "readme.md", RelativePath: "src/readme.md", Data: []byte("some-readme")},
 			{Name: "cache.rs", RelativePath: "src/cache.rs", Data: []byte("some-cache")},
 			{Name: "base64.c", RelativePath: "src/base64.c", Data: []byte("some-base64")},
 		})
-		internal.Status(repo)
+		repo.Status()
 		repo.Index.AddOrModifyEntries(repo, []string{"src/readme.md"})
 		m := internal.CreateTreeFromFiles(repo, []string{"src/readme.md"})
 		tree := internal.FromMapToTree(repo, m, "src")
@@ -73,7 +73,7 @@ func TestRepository(t *testing.T) {
 				internal.WriteObject(repo, ti, internal.TreeHeaderName)
 			},
 		)
-		commit := internal.CreateCommit(repo, &tree)
+		commit := internal.CreateCommit(repo, &tree, "message")
 		hash, err := internal.WriteObject(repo, *commit, "commit")
 		if err != nil {
 			panic(err)
@@ -92,25 +92,25 @@ func TestRepository(t *testing.T) {
 		ref.WriteRef(repo)
 
 		//Find out the new status
-		internal.Status(repo)
+		repo.Status()
 
 		//Modify the file. Cache is clear because commit was made recently.
 		CreateFilesTesting(tmp, []string{"src"}, []TestingFile{
 			{Name: "readme.md", RelativePath: "src/readme.md", Data: []byte("let's change the content of this file with some modifications")},
 		})
 		//Find pit tje new status
-		internal.Status(repo)
+		repo.Status()
 
 		// Now add the file and see status
 		repo.Index.AddOrModifyEntries(repo, []string{"src/readme.md"})
 		//Find pit tje new status
-		internal.Status(repo)
+		repo.Status()
 		//Modify some lines
 		CreateFilesTesting(tmp, []string{"src"}, []TestingFile{
 			{Name: "readme.md", RelativePath: "src/readme.md", Data: []byte("let's change the content of this file with some modifications\n Let's add a new line and see")},
 		})
-		//Find pit tje new status
-		internal.Status(repo)
+		//Find pit the new status
+		repo.Status()
 
 	})
 

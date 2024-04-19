@@ -64,33 +64,8 @@ func (b *Blob) Persist() error {
 	if err != nil {
 		return err
 	}
-	path, err := HashToPath(b.Repo, hash)
-	if err != nil {
-		return err
-	}
 	b.Hash = hash
-	b.Path = path
 	return nil
-}
-
-// Read the blob from got object folders.
-func ReadBlobObject(repo *GotRepository, objId string) (*Blob, error) {
-	path, err := HashToPath(repo, objId)
-	if err != nil {
-		return nil, err
-	}
-	data, err := ReadObject(repo, BlobHeaderName, objId)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Blob{
-		Repo:        repo,
-		Hash:        objId,
-		FileContent: data,
-		Path:        path,
-		Commit:      nil,
-	}, nil
 }
 
 // Create a new instance of blob from the given user path.
@@ -103,16 +78,11 @@ func BlobFromUserPath(repo *GotRepository, path string) (*Blob, error) {
 	} else {
 		realP = filepath.Join(repo.GotTree, path)
 	}
-	// User blob content.
-	content, err := os.ReadFile(realP)
-	if err != nil {
-		return nil, err
-	}
 	//Create base blob object. At least the content must be filled out.
 	blob := Blob{
 		Repo:        repo,
 		Hash:        "",
-		FileContent: content,
+		FileContent: nil,
 		Path:        realP,
 		Commit:      nil,
 	}

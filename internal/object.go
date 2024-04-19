@@ -15,7 +15,6 @@ import (
 
 
 const (
-	tagName          = "object"
 	newLine          = '\n'
 	tab              = '\t'
 	CommitHeaderName = string("commit")
