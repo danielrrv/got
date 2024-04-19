@@ -2,9 +2,9 @@ package internal
 
 import (
 	"bytes"
-	"time"
 	"reflect"
 	"strings"
+	"time"
 )
 
 const (
@@ -64,14 +64,15 @@ func (c Commit) Deserialize(d []byte) Commit {
 	return v.Interface().(Commit)
 }
 
-func CreateCommit(repo *GotRepository, t *TreeItem, message string) *Commit {
+func CreateCommit(repo *GotRepository, t *TreeItem, message string, parentCommit string) *Commit {
+	config := repo.GetConfiguration()
 	return &Commit{
-		Author:      "Daniel",
-		Committer:   "Taken from cnfiguration",
+		Author:      config.User.Name,
+		Committer:   config.User.Email,
 		Tree:        t.Hash,
 		Date:        time.Now().Format(time.DateTime),
 		Description: message,
-		Parent:      "some-parent",
+		Parent:      parentCommit,
 	}
 }
 

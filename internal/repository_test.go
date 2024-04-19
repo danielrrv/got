@@ -73,7 +73,7 @@ func TestRepository(t *testing.T) {
 				internal.WriteObject(repo, ti, internal.TreeHeaderName)
 			},
 		)
-		commit := internal.CreateCommit(repo, &tree, "message")
+		commit := internal.CreateCommit(repo, &tree, "message", "")
 		hash, err := internal.WriteObject(repo, *commit, "commit")
 		if err != nil {
 			panic(err)
@@ -111,7 +111,7 @@ func TestRepository(t *testing.T) {
 		})
 		//Find pit the new status
 		repo.Status()
-
+		
 	})
 
 }

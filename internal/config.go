@@ -143,6 +143,7 @@ func formatKey(parent string, t reflect.Type, index int) string {
 	return key
 }
 
+//split lines by = separator into a map.
 func parse(d []byte) map[string]string {
 	m := make(map[string]string)
 	lines := strings.Split(string(d), string(newLine))
@@ -157,3 +158,14 @@ func parse(d []byte) map[string]string {
 	}
 	return m
 }
+
+// Obtain the bytes given a GotConfig.
+func (b *GotConfig) toBytes() []byte {
+	var ret bytes.Buffer
+	err := Marshal(*b, &ret)
+	if err != nil {
+		panic(err)
+	}
+	return ret.Bytes()
+}
+

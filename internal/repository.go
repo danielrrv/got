@@ -31,7 +31,6 @@ var (
 	VersionRegex = regexp.MustCompile("^version")
 )
 
-
 // https://github.com/atom/git-utils/blob/master/src/repository.h
 type GotRepository struct {
 	// The root folder of the repository.
@@ -44,10 +43,10 @@ type GotRepository struct {
 	Index *Index
 }
 
-var BaseRepoConfig  = GotConfig{
+var BaseRepoConfig = GotConfig{
 	Bare: false,
 	User: UserConfig{
-		Name: "Arnulfo Telaentierra",
+		Name:  "Arnulfo Telaentierra",
 		Email: "dejemonosdevainas@email.com",
 	},
 	Branch: "master",
@@ -143,7 +142,11 @@ func FindOrCreateRepo(path string) (*GotRepository, error) {
 		}
 
 		//Create the version's file and write in it.
-		if err := CreateOrUpdateRepoFile(repo, "HEAD", []byte(fmt.Sprintf("ref: refs/heads/main"))); err != nil {
+		if err := CreateOrUpdateRepoFile(repo, "HEAD", []byte("ref: refs/heads/main")); err != nil {
+			panic(err)
+		}
+		//Create the config's file and write in it.
+		if err := CreateOrUpdateRepoFile(repo, "config", []byte(BaseRepoConfig.toBytes())); err != nil {
 			panic(err)
 		}
 
@@ -252,7 +255,7 @@ func (repo *GotRepository) Status() {
 			untrackedFiles = append(untrackedFiles, node)
 		}
 	}
-	
+
 	var headCommit *Commit
 	// Get the HEAD reference to compare with its tree.
 	ref := repo.GetHEADReference()
@@ -275,13 +278,13 @@ func (repo *GotRepository) Status() {
 		tree := dummy.Deserialize(rawTree)
 		// What it does: recursively make all tree blob flatten into an array of strings.
 		pathsInTree := tree.FlatItems()
-		
+
 		for _, trackFile := range trackedFiles {
 			// - Find out if the tracked file is persisted on the tree of the HEAD.
 			// - if is persisted compare its hash with latest file state hash of the user.
 			//   -  if the hashes are different, files are different and user has modified the file.
 			//     - if blob is in cache means that the user has already added the file to stage area.
-			//     - if cache hash is different from latest file state hash of the user,then user has modified the file since the 
+			//     - if cache hash is different from latest file state hash of the user,then user has modified the file since the
 			//        the last time the files has been added to stage area.
 			if idxPersisted := slices.IndexFunc(pathsInTree, func(ti TreeItem) bool {
 				return relativize(repo, ti.Path) == trackFile
@@ -318,4 +321,16 @@ func (repo *GotRepository) Status() {
 		// THis is the first commit. Only matter validation of the cache vs user files.
 	}
 	fmt.Println(relativizeMultiPaths(repo, untrackedFiles), trackedFiles)
+}
+
+func (repo *GotRepository) GetConfiguration() GotConfig {
+	content, err := os.ReadFile(filepath.Join(repo.GotDir, "config"))
+	if err != nil {
+		panic(err)
+	}
+	var config GotConfig
+	if err = Unmarshal(content, &config); err != nil {
+		panic(err)
+	}
+	return config
 }
