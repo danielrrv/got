@@ -32,8 +32,6 @@ type GotConfig struct {
 	MaxCache int        `property:"max_cache"`
 }
 
-
-
 // Encode the g interface into buffer of string java properties-ish.
 // user.email=some@email.com
 // branch=false
@@ -54,20 +52,11 @@ func marshal(g interface{}, parent string, ret *bytes.Buffer) error {
 		key := formatKey(parent, t, index)
 		switch v.Field(index).Kind() {
 		case reflect.String:
-			ret.Write([]byte(key))
-			ret.Write([]byte{'='})
-			ret.Write([]byte(v.Field(index).String()))
-			ret.Write([]byte{'\n'})
+			writeKeyValue(ret, key, v.Field(index).String())
 		case reflect.Bool:
-			ret.Write([]byte(key))
-			ret.Write([]byte{'='})
-			ret.Write([]byte(strconv.FormatBool(v.Field(index).Bool())))
-			ret.Write([]byte{'\n'})
+			writeKeyValue(ret, key, strconv.FormatBool(v.Field(index).Bool()))
 		case reflect.Int:
-			ret.Write([]byte(key))
-			ret.Write([]byte{'='})
-			ret.Write([]byte(strconv.FormatInt(v.Field(index).Int(), 10)))
-			ret.Write([]byte{'\n'})
+			writeKeyValue(ret, key, strconv.FormatInt(v.Field(index).Int(), 10))
 		case reflect.Struct:
 			err := marshal(v.Field(index).Interface(), key, ret)
 			if err != nil {
@@ -80,6 +69,16 @@ func marshal(g interface{}, parent string, ret *bytes.Buffer) error {
 		}
 	}
 	return nil
+}
+
+//Write key-value line on ret buffer
+//
+//Example: key=value\n
+func writeKeyValue(ret *bytes.Buffer, key, value string) {
+	ret.Write([]byte(key))
+	ret.Write([]byte{'='})
+	ret.Write([]byte(value))
+	ret.Write([]byte{'\n'})
 }
 
 // Decode bytes into interface object.
@@ -143,7 +142,6 @@ func formatKey(parent string, t reflect.Type, index int) string {
 	}
 	return key
 }
-
 
 func parse(d []byte) map[string]string {
 	m := make(map[string]string)
