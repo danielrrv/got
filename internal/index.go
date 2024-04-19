@@ -146,19 +146,18 @@ func (i *Index) SerializeIndex() []byte {
 	for _, cacheEntry := range i.Cache {
 		fileSizeCompressed := Bit12(len(cacheEntry.CompressedFileContent))
 		internalPacket := AllocatePacket(0)
+		// Construct the cache packet for the entry.
 		internalPacket.Set([]byte{0x13})
+		//TODO: deserialize this.
 		internalPacket.Set([]byte(cacheEntry.PathName), []byte{0x20}, Hex2bytes(cacheEntry.Hash), fileSizeCompressed.Bytes(), cacheEntry.CompressedFileContent)
 		internalPacket.Set([]byte{0x00})
-		// fmt.Println("Internal packet=",internalPacket.buff)
 		packet.Set(internalPacket.buff)
 	}
-	// fmt.Println("packet=", packet.buff)
 	return packet.buff
 }
 
 // Convert bytes into Index pointer.
 func (index *Index) DeserializeIndex(data []byte) {
-
 	if !bytes.Equal(data[0:blockSize], Signature[:]) {
 		panic("Invalid index.")
 	}
@@ -168,9 +167,7 @@ func (index *Index) DeserializeIndex(data []byte) {
 	index.Signature = Signature
 	index.Version = IndexVersion
 	sizeOfEntry := Bit32FromBytes(data[blockSize*2 : blockSize*3])
-	fmt.Println(data)
 	data = data[blockSize*3:]
-	// index.Size = sizeOfEntry
 	entries := make([]IndexEntry, 0)
 	for sizeOfEntry > 0 {
 		//Times
@@ -202,7 +199,7 @@ func (index *Index) DeserializeIndex(data []byte) {
 
 	if len(data) > 0 {
 		// for len(data) > 0 {
-		fmt.Println("with cache", len(data))
+		fmt.Println("with cache", len(data), data)
 		// 	data = data[1:]
 		// }
 
@@ -280,7 +277,6 @@ func (index *Index) AddOrModifyEntries(repo *GotRepository, filePaths []string) 
 				cacheEntry.Hash = possibleBlob.Hash
 			} else {
 				// Add untracked/modified file to the cache.
-
 				index.Cache = append(index.Cache, CacheEntry{
 					PathName:              fileP,
 					Hash:                 	possibleBlob.Hash,

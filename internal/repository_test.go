@@ -67,7 +67,7 @@ func TestRepository(t *testing.T) {
 				panic(err)
 			}
 			internal.WriteObject(repo, blob, internal.BlobHeaderName)
-			// fmt.Println(ti)
+			
 		},
 			func(ti internal.TreeItem) {
 				internal.WriteObject(repo, ti, internal.TreeHeaderName)

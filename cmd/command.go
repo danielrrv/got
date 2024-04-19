@@ -10,11 +10,14 @@ import (
 
 // go build -o got  && sudo cp got /usr/bin
 func usage() {
-	format := `Usage: remote-terminal [OPTIONS] COMMAND [ARGS]...
-	Author: Daniel Rodrigo Rodriguez Vergara <drodrigo678@gmail.com>
-	Options:
-		-v, --version            show the application's version and exit.
-	`
+	format := `Usage:
+    got <command> [<args>]
+	command:
+		init		Create an empty repository or find a existing one in path provided.
+		add			Add files to stage area.
+		status		Report the state of the working tree.
+   `
+	
 	fmt.Fprintln(os.Stderr, format)
 }
 type Application struct {
@@ -47,14 +50,17 @@ func NewApplication() *Application {
 
 func (a *Application) Run()  int{
 	for _, cmd := range a.commands {
-		// if os.Args <2{
-		// 	panic("insufficient args. Help!!")
-		// }
-		if os.Args[1] == cmd.name{
+		if len(os.Args) < 2{
+			usage()
+			os.Exit(1)
+		}
+		if os.Args[1] == cmd.name {
 			return cmd.Run(a, os.Args[2:])
 		}
 	}
+	usage()
 	a.Report(errors.New("unknown command"))
+	os.Exit(1)
 	return 1
 }
 

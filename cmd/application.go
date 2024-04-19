@@ -15,7 +15,7 @@ var (
 	initArguments = []Arg{{
 		Name:         "path",
 		DefaultValue: "",
-		Usage:        "Repository root tree path.",
+		Usage:        "got add <path>...",
 	}}
 )
 

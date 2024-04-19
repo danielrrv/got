@@ -117,6 +117,7 @@ func FindOrCreateRepo(path string) (*GotRepository, error) {
 		GotConfig: GotConfig{},
 		Index:     NewIndex(),
 	}
+	
 	//The folder path/.got exist and it has a version file that will determine this is already created repo.
 	// The existance of index doesn't guarantee that the others important folders are created.
 	if pathExist(filepath.Join(repo.GotDir, "index"), false) && pathExist(filepath.Join(repo.GotDir, gotRepositoryDirObjects), false) {
@@ -124,6 +125,7 @@ func FindOrCreateRepo(path string) (*GotRepository, error) {
 		if err != nil {
 			panic(err)
 		}
+		
 		if len(content) > 0 {
 			repo.Index.DeserializeIndex(content)
 			return repo, nil
