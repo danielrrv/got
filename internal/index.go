@@ -47,7 +47,6 @@ type Bit12 uint16
 
 // Convert uint32 into 4 bytes of uint8 ByteOrder BigIndian.
 func (b Bit32) Bytes() []byte {
-	
 	rt := make([]byte, 4)
 	rt[0] = byte(b >> 24 & 0xFF)
 	rt[1] = byte(b >> 16 & 0xFF)
@@ -58,7 +57,6 @@ func (b Bit32) Bytes() []byte {
 
 // Convert uint16 into 2 bytes of uint8 ByteOrder BigIndian of 13 bits only considered.
 func (b Bit12) Bytes() []byte {
-	fmt.Println(b)
 	rt := make([]byte, 2)
 	rt[0] = byte(b >> 8 & 0x0F)
 	rt[1] = byte(b & 0xFF)
@@ -91,6 +89,9 @@ type IndexEntry struct {
 	Hash     string //sha1
 	PathName string
 }
+func (i IndexEntry) String() string {
+	return fmt.Sprintf("PathName: %s, Hash: %s", i.PathName, i.Hash)
+}
 
 type CacheEntry struct {
 	PathName              string
@@ -98,6 +99,9 @@ type CacheEntry struct {
 	CompressedFileContent []byte
 }
 
+func (c CacheEntry) String() string {
+	return fmt.Sprintf("PathName: %s, Hash: %s", c.PathName, c.Hash)
+}
 type Index struct {
 	// Signature of the index.
 	Signature Byte4
@@ -110,6 +114,11 @@ type Index struct {
 	Cache   []CacheEntry
 }
 
+func (i *Index) String() string {
+	return fmt.Sprintf("Signature: %v, Version: %v, Size: %v, Entries: %v, Cache: %v", i.Signature, i.Version, i.Size, i.Entries, i.Cache)
+}
+
+
 func NewIndex() *Index {
 	return &Index{
 		Signature: Signature,
@@ -120,14 +129,14 @@ func NewIndex() *Index {
 	}
 }
 
-func Hex2bytes(s string) []byte{
+func Hex2bytes(s string) []byte {
 	b, err := hex.DecodeString(s)
-	if err !=  nil {
+	if err != nil {
 		panic(err)
-	} 
+	}
 	return b
 }
-func Bytes2hex(d []byte) string{
+func Bytes2hex(d []byte) string {
 	return hex.EncodeToString(d)
 }
 
@@ -150,7 +159,6 @@ func (i *Index) SerializeIndex() []byte {
 		internalPacket.Set([]byte{0x13})
 		//TODO: deserialize this.
 		internalPacket.Set([]byte(cacheEntry.PathName), []byte{0x20}, Hex2bytes(cacheEntry.Hash), fileSizeCompressed.Bytes(), cacheEntry.CompressedFileContent)
-		internalPacket.Set([]byte{0x00})
 		packet.Set(internalPacket.buff)
 	}
 	return packet.buff
@@ -175,14 +183,12 @@ func (index *Index) DeserializeIndex(data []byte) {
 		Mtime_s := Bit32FromBytes(data[blockSize*1 : blockSize*2])
 		//File
 		FileSize := Bit32FromBytes(data[blockSize*2 : blockSize*3])
-		
 		Hash := data[blockSize*3 : (blockSize*3)+sha1.Size]
 
 		//filename length.
-	
 		nameLength := Bit12FromBytes(data[(blockSize*3)+sha1.Size : (blockSize*3)+sha1.Size+2])
 		//34 bytes
-		PathName := string(data[(blockSize*3)+sha1.Size+2 : (blockSize*3)+sha1.Size + 2 + nameLength])
+		PathName := string(data[(blockSize*3)+sha1.Size+2 : (blockSize*3)+sha1.Size+2+nameLength])
 		//34 + namelength
 		entries = append(entries, IndexEntry{
 			Ctime_s:  Ctime_s,
@@ -197,20 +203,28 @@ func (index *Index) DeserializeIndex(data []byte) {
 	cache := make([]CacheEntry, 0)
 	//there caches entries.
 
-	if len(data) > 0 {
-		// for len(data) > 0 {
-		fmt.Println("with cache", len(data), data)
-		// 	data = data[1:]
-		// }
+	if len(data) > 0 && data[0] == 0x13 {
+		data = data[1:]
+		for len(data) > 0 {
+			//TODO: refactor indexes.
+			pathSep := slices.Index(data[1:], byte(0x20))
+			dataCompressSize := Bit12FromBytes(data[pathSep + 1 + sha1.Size + 1 : pathSep + 1 + sha1.Size + 3])
+			cache = append(cache, CacheEntry{
+				PathName:              string(data[0 : pathSep+1]),
+				Hash:                  Bytes2hex(data[pathSep+2 : pathSep+2+sha1.Size]),
+				CompressedFileContent: data[pathSep+2+sha1.Size+2 : pathSep+2+sha1.Size+2+int(dataCompressSize)],
+			})
+			// What it does: break when no more data to consume.
+			if pathSep+2+sha1.Size+2+int(dataCompressSize) == len(data){
+				break
+			}
+			data = data[pathSep+2+sha1.Size+2+int(dataCompressSize)+1:]
+		}
+		fmt.Println("with cache", cache)
 
 	} else {
-
 		fmt.Println("without cache", string(data))
 	}
-
-	// if len(entries) != int(index.Size) {
-	// 	panic("corruption in deserialize index")
-	// }
 	if len(entries) > 0 {
 		index.Entries = slices.Clone(entries)
 		index.Size = Bit32(len(entries))
@@ -245,18 +259,17 @@ func (index *Index) AddOrModifyEntries(repo *GotRepository, filePaths []string) 
 		}
 		//Index in the db.
 		idx := slices.IndexFunc(index.Entries, func(entry IndexEntry) bool {
-
 			return entry.PathName == fileP
 		})
-		
-		//Index in the db.
+
+		//Index in the cache.
 		cachedIdx := slices.IndexFunc(index.Cache, func(entry CacheEntry) bool {
 			return entry.PathName == fileP
 		})
-	
+
 		// Update only if path exists already and the hash are different.
 		if idx >= 0 {
-			if possibleBlob.Hash == index.Entries[idx].Hash{
+			if possibleBlob.Hash == index.Entries[idx].Hash {
 				fmt.Println("Nothing to add. File are the same.")
 				return
 			}
@@ -279,7 +292,7 @@ func (index *Index) AddOrModifyEntries(repo *GotRepository, filePaths []string) 
 				// Add untracked/modified file to the cache.
 				index.Cache = append(index.Cache, CacheEntry{
 					PathName:              fileP,
-					Hash:                 	possibleBlob.Hash,
+					Hash:                  possibleBlob.Hash,
 					CompressedFileContent: compressedFileContent.Bytes(),
 				})
 			}

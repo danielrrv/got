@@ -53,11 +53,22 @@ func (o OFS) Location() string {
 
 // Read the user file.
 func (o OFS) Serialize() []byte {
-	content, err := os.ReadFile(o.path)
+	repo, err := FindOrCreateRepo(filepath.Dir(o.path))
 	if err != nil {
 		panic(err)
 	}
-	return content
+	// Find the blob in cache.
+	idx := slices.IndexFunc(repo.Index.Cache, func(entry CacheEntry) bool {
+		return entry.PathName == relativize(repo, o.path)
+	})
+	if idx >= 0 {
+		var bb bytes.Buffer
+		Decompress(repo.Index.Cache[idx].CompressedFileContent, &bb)
+		return bb.Bytes()
+	}else{
+		panic("Object is not in cache. Got index invalid")
+	}
+	
 }
 
 func (t TreeItem) Location() string {
@@ -130,7 +141,7 @@ func FromMapToTree(repo *GotRepository, m map[string][]OFS, parent string) TreeI
 			re = append(re, FromMapToTree(repo, m, item.path))
 		}
 	}
-	// Based parent tree. 
+	// Based parent tree.
 	t := TreeItem{
 		Path:     parent,
 		Mode:     TreeMode,

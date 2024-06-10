@@ -8,9 +8,6 @@ import (
 	// internal "github.com/danielrrv/got/internal"
 )
 
-const (
-	testFolder = "test-repo-location"
-)
 var (
 	repoPath string
 )

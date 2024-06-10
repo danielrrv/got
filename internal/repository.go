@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	// "slices"
 )
 
 const (
@@ -97,10 +96,8 @@ func FindRecursivelyFolder(path string, folder string, until int) (string, error
 //     Find the repo if exist in the path or create new one.
 func FindOrCreateRepo(path string) (*GotRepository, error) {
 	if !pathExist(path, true) {
-
 		return nil, ErrorPathDoesNotExist
 	}
-	fmt.Println(path)
 	// Default folder location in case not .got folder found.
 	gotDir := filepath.Join(path, gotRootRepositoryDir)
 	treeDir := path
@@ -117,7 +114,6 @@ func FindOrCreateRepo(path string) (*GotRepository, error) {
 		GotConfig: GotConfig{},
 		Index:     NewIndex(),
 	}
-	
 	//The folder path/.got exist and it has a version file that will determine this is already created repo.
 	// The existance of index doesn't guarantee that the others important folders are created.
 	if pathExist(filepath.Join(repo.GotDir, "index"), false) && pathExist(filepath.Join(repo.GotDir, gotRepositoryDirObjects), false) {
@@ -209,7 +205,7 @@ func listWorkTree(rootDir string) []string {
 	}
 	// Implementation to discard .got folder.
 	dirs = slices.DeleteFunc(dirs, func(e fs.DirEntry) bool {
-		return e.Name() == ".got" && e.IsDir()
+		return e.Name() == ".got" && e.IsDir() || e.Name() == ".git" && e.IsDir()
 	})
 	for _, dir := range dirs {
 		if dir.IsDir() {
@@ -245,6 +241,9 @@ func (repo *GotRepository) Status() {
 	trackedFiles := make([]string, 0)
 	// Container for untracked files.
 	untrackedFiles := make([]string, 0)
+
+	cacheFiles := make([]string, 0)
+	noStageFiles := make([]string, 0)
 
 	for _, node := range worktree {
 		// - what it does: Find out whether the node/file is already in index.
@@ -304,25 +303,65 @@ func (repo *GotRepository) Status() {
 					}); idxAtCache >= 0 {
 						if repo.Index.Cache[idxAtCache].Hash != hash {
 							// File has changed from previous state of the stage area.
-							fmt.Println("cache file different from user's recently changed file lines.")
+							cacheFiles = append(cacheFiles, trackFile)
 						} else {
 							// Cache and user file are the same. File recently added but not modified.
 						}
 					} else {
+						fmt.Println("File no added after being modified")
 						//File no added after being modified
+						noStageFiles = append(noStageFiles, trackFile)
 					}
 
 				} else {
+					fmt.Println("Tracked file is not modified.")
 					// Tracked file is not modified.
 				}
 			} else {
+				fmt.Println("File tracked for first time because is not in tree.")
 				//File tracked for first time because is not in tree.
 			}
 		}
 	} else {
+		fmt.Println("This is the first commit. Only matter validation of the cache vs user files.")
+		cacheFiles = append(cacheFiles, trackedFiles...)
+		for _, trackFile := range trackedFiles {
+			//user file state
+			hash, err := CreatePossibleObjectFromData(repo, Blob{Path: filepath.Join(repo.GotTree, trackFile)}, BlobHeaderName)
+			if err != nil {
+				panic(err)
+			}
+			if idxAtCache := slices.IndexFunc(repo.Index.Cache, func(cache CacheEntry) bool {
+				return trackFile == cache.PathName
+			}); idxAtCache >= 0 {
+				
+				if repo.Index.Cache[idxAtCache].Hash != hash {
+					noStageFiles = append(noStageFiles, trackFile)
+				} else {
+					fmt.Printf("Files are the same nothig has changed %s", trackFile )
+					//Files are the same nothig has changed.
+				}
+			} else {
+				// Never happen
+			}
+		}
+
+		//
+
+		// }
 		// THis is the first commit. Only matter validation of the cache vs user files.
 	}
-	fmt.Println(relativizeMultiPaths(repo, untrackedFiles), trackedFiles)
+	formatFiles := func(files []string) string {
+		var ret string
+		for _, file := range files {
+			ret += fmt.Sprintf("%s\n", file)
+		}
+		return ret
+	}
+	fmt.Printf(`\nChanges to be committed:
+				%sChange not staged for next commit:
+				%sUntracked files:
+				%s`, formatFiles(cacheFiles), formatFiles(noStageFiles), formatFiles(relativizeMultiPaths(repo, untrackedFiles)))
 }
 
 func (repo *GotRepository) GetConfiguration() GotConfig {

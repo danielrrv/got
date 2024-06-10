@@ -57,7 +57,9 @@ func TestRepository(t *testing.T) {
 			{Name: "base64.c", RelativePath: "src/base64.c", Data: []byte("some-base64")},
 		})
 		repo.Status()
+
 		repo.Index.AddOrModifyEntries(repo, []string{"src/readme.md"})
+		repo.Index.Persist(repo)
 		m := internal.CreateTreeFromFiles(repo, []string{"src/readme.md"})
 		tree := internal.FromMapToTree(repo, m, "src")
 		tree.TraverseTree(func(ti internal.TreeItem) {
@@ -103,6 +105,7 @@ func TestRepository(t *testing.T) {
 
 		// Now add the file and see status
 		repo.Index.AddOrModifyEntries(repo, []string{"src/readme.md"})
+		repo.Index.Persist(repo)
 		//Find pit tje new status
 		repo.Status()
 		//Modify some lines

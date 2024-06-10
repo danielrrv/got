@@ -156,7 +156,6 @@ func CreatePossibleObjectFromData(repo *GotRepository, g GotObject, header strin
 
 // [Persist] the object in disk given the data. CratePossibleObject must have generated the same hash. Use cautionsly.
 func WriteObject(repo *GotRepository, g GotObject, header string) (string, error) {
-	// fmt.Println("Writing a "+ header + " at "+ g.Location())
 	//1. Build the object
 	rawObj := BuildObject(header, g)
 	//2. Derive the has

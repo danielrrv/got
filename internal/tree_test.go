@@ -41,9 +41,9 @@ func TestTree(t *testing.T) {
 			{Name: "mx.txt", RelativePath: "src/a/b/mx.txt", Data: []byte("some-base64")},
 			{Name: "jx.txt", RelativePath: "src/a/b/jx.txt", Data: []byte("some-other")},
 		})
-		
-
+		repo.Index.AddOrModifyEntries(repo, []string{"src/a/co.txt", "src/a/c/cx.txt", "src/a/b/mx.txt", "src/a/b/jx.txt"})
 		m := internal.CreateTreeFromFiles(repo, []string{"src/a/co.txt", "src/a/c/cx.txt", "src/a/b/mx.txt", "src/a/b/jx.txt"})
+		//TODO: Add the files to stage area
 		tree := internal.FromMapToTree(repo, m, "src")
 		tree.TraverseTree(
 			func(ti internal.TreeItem) {
@@ -53,7 +53,6 @@ func TestTree(t *testing.T) {
 					panic(err)
 				}
 				internal.WriteObject(repo, blob, internal.BlobHeaderName)
-				// fmt.Println(ti)
 			},
 			func(ti internal.TreeItem) {
 				internal.WriteObject(repo, ti, internal.TreeHeaderName)
