@@ -258,3 +258,11 @@ func (t TreeItem) Deserialize(d []byte) TreeItem {
 	}
 	return t
 }
+
+func ReadTree(repo *GotRepository, objId string) TreeItem {
+	rawData, err := ReadObject(repo, TreeHeaderName, objId)
+	if err != nil {
+		panic(err)
+	}
+	return new(TreeItem).Deserialize(rawData)
+}

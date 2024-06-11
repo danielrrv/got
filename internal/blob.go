@@ -2,7 +2,6 @@ package internal
 
 import (
 	"errors"
-
 	// "io/fs"
 	"os"
 	"path/filepath"
@@ -70,20 +69,13 @@ func (b *Blob) Persist() error {
 
 // Create a new instance of blob from the given user path.
 func BlobFromUserPath(repo *GotRepository, path string) (*Blob, error) {
-	var realP string
-	isAbs := filepath.IsAbs(path)
-	// Implementation to use the absolute path as long as it is. Otherwise use the constructed.
-	if isAbs {
-		realP = path
-	} else {
-		realP = filepath.Join(repo.GotTree, path)
-	}
 	//Create base blob object. At least the content must be filled out.
 	blob := Blob{
 		Repo:        repo,
 		Hash:        "",
+		// Serialize of blob will look for the content of the file.
 		FileContent: nil,
-		Path:        realP,
+		Path:        filepath.Join(repo.GotTree, path),
 		Commit:      nil,
 	}
 	// Create  possible hash build the base object.
@@ -92,5 +84,19 @@ func BlobFromUserPath(repo *GotRepository, path string) (*Blob, error) {
 		panic(err)
 	}
 	blob.Hash = possibleHash
+	return &blob, nil
+}
+
+
+func BlobFromCacheEntry(repo *GotRepository, entry CacheEntry) (*Blob, error) {
+	//Create base blob object. At least the content must be filled out.
+	blob := Blob{
+		Repo:        repo,
+		Hash:        entry.Hash,
+		// Serialize of blob will look for the content of the file.
+		FileContent: nil,
+		Path:        filepath.Join(repo.GotTree, entry.PathName),
+		Commit:      nil,
+	}
 	return &blob, nil
 }

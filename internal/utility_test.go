@@ -2,15 +2,12 @@ package internal_test
 
 import (
 	// "io/fs"
+	"fmt"
 	"os"
 	"path/filepath"
-
 	// internal "github.com/danielrrv/got/internal"
 )
 
-var (
-	repoPath string
-)
 
 type TestingFile struct{
 	Name string
@@ -31,6 +28,7 @@ func CreateFilesTesting(projectTemporalFolder string, folders []string, files []
 	}
 
 	for _, file := range files {
+		fmt.Println("Creating file", filepath.Join(projectTemporalFolder, file.RelativePath))
 		fd, err := os.OpenFile(filepath.Join(projectTemporalFolder, file.RelativePath), os.O_WRONLY|os.O_CREATE, 0755)
 		if err != nil {
 			panic(err)

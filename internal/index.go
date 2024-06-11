@@ -86,7 +86,9 @@ type IndexEntry struct {
 	Mtime_s Bit32
 	// This is the on-disk size from stat(2), truncated to 32-bit.
 	FileSize Bit32
+	// The sha1 hash of the file.
 	Hash     string //sha1
+	// The path name of the file.
 	PathName string
 }
 func (i IndexEntry) String() string {
@@ -94,14 +96,27 @@ func (i IndexEntry) String() string {
 }
 
 type CacheEntry struct {
+	// PathName of the file.
 	PathName              string
+	// Hash of the file.
 	Hash                  string
+	// Compressed file content.
 	CompressedFileContent []byte
 }
 
+// String representation of the cache entry.
 func (c CacheEntry) String() string {
 	return fmt.Sprintf("PathName: %s, Hash: %s", c.PathName, c.Hash)
 }
+
+// Serialize the cache entry.
+func(c CacheEntry) Serialize() []byte {
+	var bb bytes.Buffer
+	Decompress(c.CompressedFileContent, &bb)
+	return bb.Bytes()
+}
+
+
 type Index struct {
 	// Signature of the index.
 	Signature Byte4
@@ -282,7 +297,7 @@ func (index *Index) AddOrModifyEntries(repo *GotRepository, filePaths []string) 
 			// Implementation to cache the file and compress its content.
 			// After commit the cache will be cleared and only entries(The tracked) files will be preserve.
 			var compressedFileContent bytes.Buffer
-			Compress(possibleBlob.FileContent, &compressedFileContent)
+			Compress(possibleBlob.Serialize(), &compressedFileContent)
 			// Entry already in cached.
 			if cachedIdx >= 0 {
 				cacheEntry := index.Cache[cachedIdx]
@@ -306,7 +321,7 @@ func (index *Index) AddOrModifyEntries(repo *GotRepository, filePaths []string) 
 			})
 			// Add untracked/modified file to the cache.
 			var compressedFileContent bytes.Buffer
-			Compress(possibleBlob.FileContent, &compressedFileContent)
+			Compress(possibleBlob.Serialize(), &compressedFileContent)
 			index.Cache = append(index.Cache, CacheEntry{
 				PathName:              fileP,
 				Hash:                  possibleBlob.Hash,
@@ -315,4 +330,15 @@ func (index *Index) AddOrModifyEntries(repo *GotRepository, filePaths []string) 
 		}
 
 	}
+}
+
+// Get the entry from the cache.
+func GetEntryFromCache(repo *GotRepository, path string) (CacheEntry, error) {
+	idx := slices.IndexFunc(repo.Index.Cache, func(entry CacheEntry) bool {
+		return entry.PathName == relativize(repo, path)
+	})
+	if idx >= 0 {
+		return repo.Index.Cache[idx], nil
+	}
+	return CacheEntry{}, ErrorNotBlobFound
 }

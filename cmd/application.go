@@ -12,6 +12,8 @@ const (
 	initName   = "init"
 	addName    = "add"
 	statusName = "status"
+	commitName = "commit"
+	catTreeName    = "cat-tree"
 )
 
 var (
@@ -28,7 +30,8 @@ func Execute() int {
 	application.AddCommand(initName, initArguments, CommandInit)
 	application.AddCommand(addName, nil, CommandAdd)
 	application.AddCommand(statusName, nil, CommandStatus)
-	application.AddCommand("commit",nil, CommandCommit)
+	application.AddCommand(commitName, nil, CommandCommit)
+	application.AddCommand(catTreeName, nil, catTree)
 	return application.Run()
 }
 
@@ -97,13 +100,37 @@ func CommandCommit(app *Application, args []string) int {
 	m := internal.CreateTreeFromFiles(repo, files)
 	//what it does: create a tree from the map.
 	tree := internal.FromMapToTree(repo, m, filepath.Base(repo.GotTree))
-	//what it does: traverse the tree and write the objects to the disk.
+	//what it does: create a commit.
 	commit := internal.CreateCommit(repo, &tree, "some-message", "")
 	//what it does: write the commit to the disk.
 	hash, err := internal.WriteObject(repo, *commit, internal.CommitHeaderName)
 	if err != nil {
 		panic(err)
 	}
+	//what it does: traverse the tree and write the objects to the disk.
+	tree.TraverseTree(func(ti internal.TreeItem) {
+		//	Here we have to go index and capture the cache of the stage area.
+		cache, err := internal.GetEntryFromCache(repo, ti.Path)
+		if err != nil {
+			panic(err)
+		}
+		internal.WriteObject(repo, cache, internal.BlobHeaderName)
+	},
+		func(ti internal.TreeItem) {
+			internal.WriteObject(repo, ti, internal.TreeHeaderName)
+		})
 	fmt.Println("Committed with hash:", hash)
+	return 0
+}
+
+func catTree(app *Application, args []string) int {
+	repo, err := internal.FindOrCreateRepo(app.pwd)
+	if err != nil {
+		app.Report(err)
+	}
+	hash := args[0]
+	commit := internal.ReadCommit(repo, hash)
+	tree := internal.ReadTree(repo, commit.Tree)
+	fmt.Println("Tree:", tree)
 	return 0
 }

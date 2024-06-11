@@ -1,7 +1,8 @@
 # got
 The simple git implementation written in golang.
 
-Some usage
+Aspired by https://maryrosecook.com/blog/post/git-from-the-inside-out
+
 
 ```
  got <command> [<args>]
